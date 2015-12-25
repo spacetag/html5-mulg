@@ -140,17 +140,15 @@ function updateBallPos(ballSpeedUpdatingTick) {
 function keypressToTickSynchronizer(registerKeypressesEveryMs) {
 
     var elapsedSinceLastTick = 0
-    var buffer = 0
 
     return function shouldUpdateMomentumThisTick(elapsedMs) {
         var shouldUpdateMomentum = false
 
         elapsedSinceLastTick += elapsedMs
 
-        if (elapsedSinceLastTick - buffer > registerKeypressesEveryMs) {
-            buffer = elapsedSinceLastTick - buffer - registerKeypressesEveryMs
+        if (elapsedSinceLastTick > registerKeypressesEveryMs) {
+            elapsedSinceLastTick = elapsedSinceLastTick - registerKeypressesEveryMs
             shouldUpdateMomentum = true
-            elapsedSinceLastTick = 0
         }
 
         return shouldUpdateMomentum
