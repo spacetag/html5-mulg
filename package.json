@@ -24,5 +24,8 @@
   "devDependencies": {
     "browserify": "12.0.1",
     "watchify": "3.6.1"
+  },
+  "dependencies": {
+    "frame-loop": "1.2.1"
   }
 }
