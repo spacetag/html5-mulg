@@ -13,6 +13,10 @@ You can play it [here](https://spacetag.github.io/html5-mulg/).
   - [ ] Be able to navigate through the screens (test) with arrow keys
   - [ ] Make sure screens wrap if appropriate
 - [ ] Get actual level file read in and displayed
+  - [ ] Create JS Object/JS Array/JSON String level format
+  - [ ] Be able to read in JS Object/JS Array/JSON String levelsets
+  - [ ] Be able to read in .pdb format levelsets
+  - [ ] Be able to read in .lev format levelsets
 
 #### Ball
 - [x] Display ball
