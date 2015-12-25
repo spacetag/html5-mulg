@@ -1,0 +1,19 @@
+/* http://stackoverflow.com/questions/1150163/stretch-and-scale-a-css-image-in-the-background-with-css-only */
+.mulg_tile {
+    /* http://www.zenphoto.org/support/topic.php?id=1000239 */
+    width: 100%;
+}
+
+td {
+    height: 32px;
+    width: 32px;
+}
+
+#ball {
+    /* http://stackoverflow.com/questions/10487292/position-absolute-but-relative-to-parent */
+    position: absolute;
+    height: 32px;
+    width: 32px;
+    /*top: 10px;*/
+    /*left: 10px;*/
+}
