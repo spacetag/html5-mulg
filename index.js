@@ -142,7 +142,7 @@ function main(dt) {
 }
 
 var engine = frameLoop({
-    fps: 30
+    fps: 20
 }, main)
 
 engine.run()
