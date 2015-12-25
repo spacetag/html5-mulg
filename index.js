@@ -23,6 +23,8 @@ var bally = 0
 var ballsx = 0
 var ballsy = 0
 
+var REGISTER_KEYPRESSES_EVERY_MS = 50
+
 function getTile(row, col) {
     // https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementById
     return document.getElementById(row + "_" + col)
@@ -133,20 +135,30 @@ function updateBallPos(ballSpeedUpdatingTick) {
     setBallPos(ballx + ballsx / FPS_MULTIPLIER, bally + ballsy / FPS_MULTIPLIER)
 }
 
-function tickCounter(framesPerKeypressHandling) {
-    var tick = 0
-    return function tickHappened() {
-        var shouldCheckKeypressState = tick % framesPerKeypressHandling === 0
-        tick++
-        return shouldCheckKeypressState
+/***** Main Game Loop *****/
+
+function keypressToTickSynchronizer(registerKeypressesEveryMs) {
+
+    var elapsedSinceLastTick = 0
+
+    return function shouldUpdateMomentumThisTick(elapsedMs) {
+        var shouldUpdateMomentum = false
+
+        elapsedSinceLastTick += elapsedMs
+
+        if (elapsedSinceLastTick > registerKeypressesEveryMs) {
+            elapsedSinceLastTick = elapsedSinceLastTick - registerKeypressesEveryMs
+            shouldUpdateMomentum = true
+        }
+
+        return shouldUpdateMomentum
     }
 }
 
-var tickHappened = tickCounter(FPS_MULTIPLIER)
+var shouldUpdateMomentumThisTick = keypressToTickSynchronizer(REGISTER_KEYPRESSES_EVERY_MS)
 
-/***** Main Game Loop *****/
-function main(dt) {
-    updateBallPos(tickHappened());
+function main(elapsedMsSinceLastTick) {
+    updateBallPos(shouldUpdateMomentumThisTick(elapsedMsSinceLastTick))
 }
 
 var engine = frameLoop({
