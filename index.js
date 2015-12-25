@@ -1,4 +1,5 @@
 var frameLoop = require('frame-loop')
+var collisionChecker = require('./collision-checking')
 
 var NUM_OF_ROWS = 9
 var NUM_OF_COLS = 10
@@ -12,9 +13,9 @@ var DOWN_KEY = 40
 var OFFSET_X = 14
 var OFFSET_Y = 14
 
-var BALL_SPEED_DECAY_ON = .99
-var BALL_SPEED_DECAY_OFF = .9
-var BALL_SPEED_THRESH = .1
+var BALL_SPEED_DECAY_ON = 0.99
+var BALL_SPEED_DECAY_OFF = 0.9
+var BALL_SPEED_THRESH = 0.1
 
 var ballx = 0
 var bally = 0
@@ -47,18 +48,17 @@ function initBallPos(row, col) {
     setBallPos(col * TILE_SIZE, row * TILE_SIZE);
 }
 
-level = [[6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
-[6, 4, 4, 4, 4, 4, 4, 4, 4, 6],
-[6, 4, 6, 6, 6, 6, 6, 4, 6, 6],
-[6, 4, 6, 4, 4, 4, 6, 4, 7, 6],
-[6, 4, 4, 4, 6, 4, 6, 6, 4, 6],
-[6, 6, 6, 6, 6, 4, 4, 6, 4, 6],
-[6, 7, 4, 4, 6, 6, 4, 6, 4, 6],
-[6, -1, 6, 4, 4, 4, 4, 6, 5, 6],
-[6, 6, 6, 6, 6, 6, 6, 6, 6, 6]];
-
-levelHeight = level.length
-levelWidth = level[0].length
+var level = [
+    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+    [6, 4, 4, 4, 4, 4, 4, 4, 4, 6],
+    [6, 4, 6, 6, 6, 6, 6, 4, 6, 6],
+    [6, 4, 6, 4, 4, 4, 6, 4, 7, 6],
+    [6, 4, 4, 4, 6, 4, 6, 6, 4, 6],
+    [6, 6, 6, 6, 6, 4, 4, 6, 4, 6],
+    [6, 7, 4, 4, 6, 6, 4, 6, 4, 6],
+    [6, -1, 6, 4, 4, 4, 4, 6, 5, 6],
+    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
+];
 
 for(var i = 0; i < NUM_OF_ROWS; i++) {
     for(var j = 0; j < NUM_OF_COLS; j++) {
@@ -103,17 +103,11 @@ function getBallIY() {
     return (bally + OFFSET_Y) % TILE_SIZE * 16 / TILE_SIZE
 }
 
-function checkForCollision(row, col) {
-    // http://stackoverflow.com/questions/4228356/integer-division-in-javascript
-    row = Math.floor((row + levelHeight) % levelHeight)
-    col = Math.floor((col + levelWidth)  % levelWidth)
-    if(level[row][col] == 6) return true;
-    return false;
-}
+var checkForCollision = collisionChecker(level)
 
 function updateBallPos() {
-    extrax = -1 * keysPressed[LEFT_KEY] + keysPressed[RIGHT_KEY]
-    extray = -1 * keysPressed[UP_KEY]   + keysPressed[DOWN_KEY]
+    var extrax = -1 * keysPressed[LEFT_KEY] + keysPressed[RIGHT_KEY]
+    var extray = -1 * keysPressed[UP_KEY]   + keysPressed[DOWN_KEY]
     ballsx = (ballsx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
     ballsy = (ballsy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
 
