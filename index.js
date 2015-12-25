@@ -1,3 +1,5 @@
+var frameLoop = require('frame-loop')
+
 var NUM_OF_ROWS = 9
 var NUM_OF_COLS = 10
 var TILE_SIZE = 32
@@ -135,10 +137,12 @@ function updateBallPos() {
 }
 
 /***** Main Game Loop *****/
-// http://stackoverflow.com/questions/3138756/calling-a-function-every-60-seconds
-function main() {
+function main(dt) {
     updateBallPos();
 }
 
-// http://stackoverflow.com/questions/3138756/calling-a-function-every-60-seconds
-setInterval(main, 50)
+var engine = frameLoop({
+    fps: 30
+}, main)
+
+engine.run()
