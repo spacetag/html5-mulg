@@ -1,6 +1,7 @@
 var frameLoop = require('frame-loop')
 var collisionChecker = require('./collision-checking')
 
+var FPS_MULTIPLIER = 3 // based on 20fps
 var NUM_OF_ROWS = 9
 var NUM_OF_COLS = 10
 var TILE_SIZE = 32
@@ -105,11 +106,14 @@ function getBallIY() {
 
 var checkForCollision = collisionChecker(level)
 
-function updateBallPos() {
-    var extrax = -1 * keysPressed[LEFT_KEY] + keysPressed[RIGHT_KEY]
-    var extray = -1 * keysPressed[UP_KEY]   + keysPressed[DOWN_KEY]
-    ballsx = (ballsx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
-    ballsy = (ballsy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+
+function updateBallPos(ballSpeedUpdatingTick) {
+    if (ballSpeedUpdatingTick) {
+        var extrax = -1 * keysPressed[LEFT_KEY] + keysPressed[RIGHT_KEY]
+        var extray = -1 * keysPressed[UP_KEY]   + keysPressed[DOWN_KEY]
+        ballsx = (ballsx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+        ballsy = (ballsy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+    }
 
     if ((ballsx > 0 && getBallIX() > 9 && checkForCollision(getBallRow(), getBallCol() + 1)) ||
         (ballsx < 0 && getBallIX() < 5 && checkForCollision(getBallRow(), getBallCol() - 1))) {
@@ -121,22 +125,32 @@ function updateBallPos() {
         ballsy = -ballsy
     }
 
-    // checkForCollision()
     // http://www.w3schools.com/jsref/jsref_abs.asp
     if (Math.abs(ballsx) < BALL_SPEED_THRESH) ballsx = 0;
     if (Math.abs(ballsy) < BALL_SPEED_THRESH) ballsy = 0;
 
     // console.log(ballsx, ballsy);
-    setBallPos(ballx + ballsx, bally + ballsy)
+    setBallPos(ballx + ballsx / FPS_MULTIPLIER, bally + ballsy / FPS_MULTIPLIER)
 }
+
+function tickCounter(framesPerKeypressHandling) {
+    var tick = 0
+    return function tickHappened() {
+        var shouldCheckKeypressState = tick % framesPerKeypressHandling === 0
+        tick++
+        return shouldCheckKeypressState
+    }
+}
+
+var tickHappened = tickCounter(FPS_MULTIPLIER)
 
 /***** Main Game Loop *****/
 function main(dt) {
-    updateBallPos();
+    updateBallPos(tickHappened());
 }
 
 var engine = frameLoop({
-    fps: 20
+    fps: 20 * FPS_MULTIPLIER
 }, main)
 
 engine.run()
