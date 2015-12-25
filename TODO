@@ -1,16 +1,16 @@
 Level display:
- ☐ Decide if you want to use Canvas or CSS
- ☐ Get two kinds of tiles displayed
- ☐ Get all kinds of tiles displayed
- ☐ Get a full screen being displayed
+ ✔ Decide if you want to use Canvas or CSS @done (2015-12-24 07:22 PM)
+ ✔ Get two kinds of tiles displayed @done (2015-12-24 07:22 PM)
+ ✔ Get all kinds of tiles displayed @done (2015-12-24 07:22 PM)
+ ✔ Get a full screen being displayed @done (2015-12-24 07:22 PM)
  ☐ Get multiple screens displayed
    ☐ Be able to navigate through the screens (test) with arrow keys
    ☐ Make sure screens wrap if appropriate
  ☐ Get actual level file read in and displayed
 
 Ball:
-  ☐ Display ball
-  ☐ Be able to control ball acceleration with arrow keys
+  ✔ Display ball @done (2015-12-24 07:22 PM)
+  ✔ Be able to control ball acceleration with arrow keys @done (2015-12-24 08:08 PM)
   ☐ Let ball navigate between screens
 
 Interaction:
