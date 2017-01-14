@@ -1,4 +1,4 @@
-module.exports = function makeCollisionCheckingFunction(level) {
+module.exports = function makeCollisionCheckingFunction(level, collisionTiles) {
 	var levelHeight = level.length
 	var levelWidth = level[0].length
 
@@ -7,6 +7,6 @@ module.exports = function makeCollisionCheckingFunction(level) {
 	    row = Math.floor((row + levelHeight) % levelHeight)
 	    col = Math.floor((col + levelWidth)  % levelWidth)
 
-	    return level[row][col] == 6
+	    return collisionTiles.indexOf(level[row][col]) !== -1
 	}
 }

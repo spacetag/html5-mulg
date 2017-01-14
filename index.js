@@ -1,7 +1,7 @@
 var frameLoop = require('frame-loop')
 var collisionChecker = require('./collision-checking')
 
-var FPS_MULTIPLIER = 3 // based on 20fps
+var FPS_MULTIPLIER = 2 // based on 20fps
 var NUM_OF_ROWS = 9
 var NUM_OF_COLS = 10
 var TILE_SIZE = 32
@@ -106,7 +106,7 @@ function getBallIY() {
     return (bally + OFFSET_Y) % TILE_SIZE * 16 / TILE_SIZE
 }
 
-var checkForCollision = collisionChecker(level)
+var checkForCollision = collisionChecker(level, [ 6 ])
 
 
 function updateBallPos(ballSpeedUpdatingTick) {
