@@ -106,7 +106,7 @@ function getBallIY() {
     return (bally + OFFSET_Y) % TILE_SIZE * 16 / TILE_SIZE
 }
 
-var checkForCollision = collisionChecker(level)
+var checkForCollision = collisionChecker(level, [ 6 ])
 
 
 function updateBallPos(ballSpeedUpdatingTick) {
