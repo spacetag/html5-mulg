@@ -51,6 +51,12 @@ module.exports = function createGame(levels, options) {
 
     var checkForCollision = null
     var tileChanges = []
+    // The original wires activators to activated tiles through 32 channels.
+    var channels = []
+    var wiring = {}
+    var activatedCells = []
+    var switchCells = []
+    var standingOn = null
     var sinceLastMomentumTick = 0
     // The score as it stood when this level started. Restarting a level puts the
     // coins back, so it has to put the score back too.
@@ -65,12 +71,19 @@ module.exports = function createGame(levels, options) {
     function ballIX() { return (game.ball.x + OFFSET_X) % TILE_SIZE * 16 / TILE_SIZE }
     function ballIY() { return (game.ball.y + OFFSET_Y) % TILE_SIZE * 16 / TILE_SIZE }
 
-    function ballSquare() {
+    function wrapped(row, col) {
         var height = game.grid.length
         var width = game.grid[0].length
-        var row = Math.floor((ballRow() + height) % height)
-        var col = Math.floor((ballCol() + width) % width)
-        return { row: row, col: col, tile: game.grid[row][col] }
+        return {
+            row: Math.floor((row + height) % height),
+            col: Math.floor((col + width) % width)
+        }
+    }
+
+    function ballSquare() {
+        var at = wrapped(ballRow(), ballCol())
+        at.tile = game.grid[at.row][at.col]
+        return at
     }
 
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
@@ -82,6 +95,92 @@ module.exports = function createGame(levels, options) {
         return oneWay !== null && oneWay === OPPOSITE[direction]
     }
 
+    /***** Channels *****/
+
+    function setTile(row, col, tileNumber) {
+        game.grid[row][col] = tileNumber
+        tileChanges.push({ row: row, col: col, tile: tileNumber })
+    }
+
+    function wireUp(level) {
+        channels = []
+        for (var i = 0; i < tiles.CHANNELS; i++) channels.push(false)
+
+        wiring = {}
+        activatedCells = []
+        switchCells = [];
+
+        (level.wiring || []).forEach(function(wire) {
+            wiring[wire.row + ',' + wire.col] = wire.channel
+
+            var tile = game.grid[wire.row][wire.col]
+            var forms = tiles.switchForms(tile)
+
+            if (forms) {
+                switchCells.push({ row: wire.row, col: wire.col, channel: wire.channel, forms: forms })
+                return
+            }
+
+            var partner = tiles.activatedPartner(tile)
+
+            if (partner !== null) {
+                activatedCells.push({
+                    row: wire.row,
+                    col: wire.col,
+                    channel: wire.channel,
+                    base: tile,
+                    partner: partner
+                })
+            }
+        })
+    }
+
+    function setChannel(channel, on) {
+        if (channels[channel] === on) return
+
+        channels[channel] = on
+
+        activatedCells.forEach(function(cell) {
+            if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.partner : cell.base)
+        })
+
+        switchCells.forEach(function(cell) {
+            if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.forms.on : cell.forms.off)
+        })
+    }
+
+    function channelAt(row, col) {
+        var channel = wiring[row + ',' + col]
+        return channel === undefined ? null : channel
+    }
+
+    // The ball bumped into a square. A switch it cannot roll over is thrown this
+    // way.
+    function throwSwitchAt(row, col) {
+        var channel = channelAt(row, col)
+        if (channel === null) return
+
+        var forms = tiles.switchForms(game.grid[row][col])
+        if (forms && !forms.momentary) setChannel(channel, !channels[channel])
+    }
+
+    // A floor switch is held down only while the ball is on it.
+    function pressSquare(at) {
+        var channel = channelAt(at.row, at.col)
+        if (channel === null) return
+
+        var forms = tiles.switchForms(game.grid[at.row][at.col])
+        if (forms && forms.momentary) setChannel(channel, true)
+    }
+
+    function releaseSquare(at) {
+        var channel = channelAt(at.row, at.col)
+        if (channel === null) return
+
+        var forms = tiles.switchForms(game.grid[at.row][at.col])
+        if (forms && forms.momentary) setChannel(channel, false)
+    }
+
     /***** Loading and restarting *****/
 
     function loadLevel(index, keepScore) {
@@ -90,6 +189,8 @@ module.exports = function createGame(levels, options) {
         // Coins vanish as they are collected, so play on a copy of the level.
         game.grid = copyGrid(game.level.tiles)
         checkForCollision = collisionChecker(game.grid, blocks)
+        wireUp(game.level)
+        standingOn = null
 
         game.score = keepScore ? scoreAtLevelStart : 0
         scoreAtLevelStart = game.score
@@ -119,6 +220,11 @@ module.exports = function createGame(levels, options) {
 
     /***** Movement *****/
 
+    function bumped(row, col) {
+        var at = wrapped(row, col)
+        throwSwitchAt(at.row, at.col)
+    }
+
     function clamp(speed) {
         if (speed > BALL_MAX_SPEED) return BALL_MAX_SPEED
         if (speed < -BALL_MAX_SPEED) return -BALL_MAX_SPEED
@@ -137,13 +243,19 @@ module.exports = function createGame(levels, options) {
             ball.sy = clamp((ball.sy + extray) * (extray ? surface.decayOn : surface.decayOff))
         }
 
-        if ((ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1, 'right')) ||
-            (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1, 'left'))) {
+        if (ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1, 'right')) {
+            bumped(ballRow(), ballCol() + 1)
+            ball.sx = -ball.sx
+        } else if (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1, 'left')) {
+            bumped(ballRow(), ballCol() - 1)
             ball.sx = -ball.sx
         }
 
-        if ((ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol(), 'down')) ||
-            (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol(), 'up'))) {
+        if (ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol(), 'down')) {
+            bumped(ballRow() + 1, ballCol())
+            ball.sy = -ball.sy
+        } else if (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol(), 'up')) {
+            bumped(ballRow() - 1, ballCol())
             ball.sy = -ball.sy
         }
 
@@ -203,6 +315,13 @@ module.exports = function createGame(levels, options) {
     function checkWhatBallIsOn() {
         var here = ballSquare()
 
+        if (!standingOn || standingOn.row !== here.row || standingOn.col !== here.col) {
+            if (standingOn) releaseSquare(standingOn)
+            standingOn = { row: here.row, col: here.col }
+            pressSquare(standingOn)
+            here = ballSquare()
+        }
+
         if (tiles.isCoin(here.tile)) {
             game.score = game.score + tiles.coinValue(here.tile)
             game.grid[here.row][here.col] = tiles.TILE.FLOOR
@@ -247,6 +366,7 @@ module.exports = function createGame(levels, options) {
     game.startNewGame = startNewGame
     game.consumeTileChanges = consumeTileChanges
     game.ballSquare = ballSquare
+    game.channelOn = function(channel) { return channels[channel] }
 
     startNewGame()
 

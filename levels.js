@@ -5,6 +5,10 @@
 //   start - { row, col } the marble's starting square
 //   tiles - a grid of tile numbers from tiles/ (docs/original-tiles.md says what
 //           each number is in the original game)
+//   wiring - optional, [ { row, col, channel } ]. The original wires activators
+//           (switches) to activated tiles (gates, pits) through 32 channels,
+//           carried in a data byte beside each tile; this is the same idea,
+//           listed only for the squares that have one.
 //
 // Every row of a level must be the same length. Levels may differ in size from
 // each other; the board is rendered from the grid. The original allowed levels
@@ -22,6 +26,8 @@ var P = tiles.TILE.EMPTY_PIT
 var I = tiles.TILE.ICY_FLOOR
 var M = tiles.TILE.MUD
 var D = tiles.TILE.ONE_WAY_DOWN
+var S = tiles.TILE.SWITCH_LOW
+var H = tiles.TILE.HGATE_CLOSED
 
 module.exports = [
     {
@@ -82,6 +88,25 @@ module.exports = [
             [ W, W, W, W, W, W, W, W, F, W ],
             [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ]
+    },
+    {
+        name: 'Locked In',
+        start: { row: 1, col: 1 },
+        tiles: [
+            [ W, W, W, W, W, W, W, W, W, W ],
+            [ W, F, F, F, F, F, F, F, S, W ],
+            [ W, F, W, W, W, W, W, W, W, W ],
+            [ W, F, F, F, F, F, C, F, F, W ],
+            [ W, W, W, W, W, W, W, W, H, W ],
+            [ W, C, F, F, F, F, F, F, F, W ],
+            [ W, W, W, W, W, W, W, W, F, W ],
+            [ W, F, F, F, F, F, F, F, G, W ],
+            [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        wiring: [
+            { row: 1, col: 8, channel: 0 },   // the switch
+            { row: 4, col: 8, channel: 0 }    // the gate it opens
         ]
     }
 ]

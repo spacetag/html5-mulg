@@ -12,13 +12,29 @@ var X = tiles.TILE.DEATH_CUBE
 // A one-row corridor the ball can be rolled along from left to right.
 function corridor(name, row) {
 	var floor = [ W ].concat(row).concat([ W ])
-	var walls = floor.map(function() { return W })
+
+	function walls() {
+		return floor.map(function() { return W })
+	}
 
 	return {
 		name: name,
 		start: { row: 1, col: 1 },
-		tiles: [ walls, floor, walls ]
+		tiles: [ walls(), floor, walls() ]
 	}
+}
+
+// Holds a direction down until something happens, or the ticks run out. Bumping
+// a switch is a toggle, so a test that wants one bump has to stop at it.
+function rollUntil(game, direction, done, ticks) {
+	game.input[direction] = true
+
+	for (var i = 0; i < ticks; i++) {
+		game.tick(16)
+		if (done() || game.status !== createGame.PLAYING) break
+	}
+
+	game.input[direction] = false
 }
 
 // Holds a direction down for a while. 'none' lets the ball coast.
@@ -299,5 +315,136 @@ test('a one-way tile can still be entered the way it points', function(t) {
 	roll(game, 'right', 200)
 
 	t.ok(game.ballSquare().col > 1, 'the ball rolled on through')
+	t.end()
+})
+
+var SWITCH = tiles.TILE.SWITCH_LOW
+var FLOOR_SWITCH = tiles.TILE.FLOOR_SWITCH_UP
+var VGATE = tiles.TILE.VGATE_CLOSED
+var PIT = tiles.TILE.EMPTY_PIT
+
+test('bumping a switch throws its channel and opens the gate on it', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE   // in the wall below, out of the ball's way
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	t.notOk(game.channelOn(0), 'the channel starts off')
+	t.equal(game.grid[2][3], VGATE, 'the gate starts closed')
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+
+	t.ok(game.channelOn(0), 'bumping the switch threw the channel')
+	t.equal(game.grid[1][3], tiles.TILE.SWITCH_HIGH, 'the switch shows as thrown')
+	t.equal(game.grid[2][3], tiles.TILE.VGATE_OPEN, 'the gate opened')
+	t.notOk(tiles.isWall(game.grid[2][3]), 'and it is no longer solid')
+	t.end()
+})
+
+test('an opened gate closes again when the switch is thrown back', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+	t.ok(game.channelOn(0))
+
+	roll(game, 'left', 30)
+	rollUntil(game, 'right', function() { return !game.channelOn(0) }, 400)
+
+	t.notOk(game.channelOn(0), 'the second bump threw it back')
+	t.equal(game.grid[2][3], VGATE, 'the gate is closed again')
+	t.end()
+})
+
+test('a wired pit fills in when its channel comes on', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][2] = PIT
+	level.wiring = [
+		{ row: 1, col: 3, channel: 3 },
+		{ row: 2, col: 2, channel: 3 }
+	]
+
+	var game = createGame([ level ])
+
+	t.ok(tiles.isDeadly(game.grid[2][2]), 'the pit starts open')
+
+	rollUntil(game, 'right', function() { return game.channelOn(3) }, 400)
+
+	t.equal(game.grid[2][2], tiles.TILE.FLOOR, 'the pit filled in')
+	t.notOk(tiles.isDeadly(game.grid[2][2]))
+	t.end()
+})
+
+test('a floor switch is only on while the ball is on it', function(t) {
+	var level = corridor('one', [ FLOOR_SWITCH, F, F, F ])
+	level.tiles[2][2] = VGATE
+	level.wiring = [
+		{ row: 1, col: 1, channel: 7 },
+		{ row: 2, col: 2, channel: 7 }
+	]
+
+	var game = createGame([ level ])
+
+	// The ball starts on the floor switch, so one tick presses it.
+	roll(game, 'none', 2)
+	t.ok(game.channelOn(7), 'standing on it holds it down')
+	t.equal(game.grid[1][1], tiles.TILE.FLOOR_SWITCH_DOWN, 'and it shows as pressed')
+
+	roll(game, 'right', 200)
+
+	t.notOk(game.channelOn(7), 'rolling off lets it back up')
+	t.equal(game.grid[1][1], FLOOR_SWITCH)
+	t.equal(game.grid[2][2], VGATE, 'so the gate closed again')
+	t.end()
+})
+
+test('the renderer is told about every square a channel changes', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+
+	var changed = game.consumeTileChanges().map(function(change) {
+		return change.row + ',' + change.col
+	})
+
+	t.ok(changed.indexOf('1,3') !== -1, 'the switch')
+	t.ok(changed.indexOf('2,3') !== -1, 'and the gate')
+	t.end()
+})
+
+test('channels start off and a level restart puts them back', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+	t.ok(game.channelOn(0))
+
+	game.advance()
+
+	t.notOk(game.channelOn(0), 'the channel is off again')
+	t.equal(game.grid[2][3], VGATE, 'and the gate is closed again')
 	t.end()
 })

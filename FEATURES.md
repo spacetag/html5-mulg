@@ -32,13 +32,17 @@ Rows marked **done** have been implemented in this port.
 | Arrow-key tilt control | Multi-key aware, sampled every 50 ms to mimic the Palm's input rate | `index.js`, `game.js` |
 | 60 fps loop scaled off the original's 20 fps | `frame-loop` at `20 × FPS_MULTIPLIER` | `index.js` |
 | Wall collision, edge bounce | Bounces off the flat sides of any blocking tile | `collision-checking.js` |
-| Four levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
+| Five levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
 | The exit (Target cross, tile 5) | Rolling onto it finishes the level | `game.js`, `tiles.js` |
 | Death and three lives | Empty pit (3), death cube (42), spent descending floor (87) | `game.js` |
 | Coins and a score | 1 and 5 cent coins (98, 100) | `game.js` |
 | Icy floor, oil, mud | Per-tile friction and steering | `tiles.js` |
 | One-way tiles | 44–47; the ball cannot come back through | `game.js` |
 | A clock, and level progression | Per-level timer, R moves you on | `game.js`, `index.js` |
+| Switches and channels | 32 channels wiring switches to gates and pits | `game.js`, `levels.js` |
+| Gates that open and close | 11/14 and 15/18, on a channel | `tiles.js` |
+| Pits that fill in, floors that drop away | 3/4, on a channel | `tiles.js` |
+| Floor switches | 88/89, held down only while the ball is on them | `game.js` |
 
 ## 2. Missing
 
@@ -53,18 +57,18 @@ Ordered roughly by how much each one blocks the rest.
 | 3 | **Game-pack / level-set selector** | Not started |
 | 4 | **Menus** — new game, options, about | Not started |
 | 5 | **Sound effects** | Not started |
-| 6 | **Timer faithful to the original** | A per-level clock counts **up**. Whether the original counted down, and at what rate on a Palm III, is still unknown — nothing found so far says |
+| 6 | **Timer faithful to the original** | A per-level clock counts **up**. A level in the original carries no time limit in its data, so a countdown is not something the level format asks for; at what rate the original's clock ran on a Palm III is still unknown |
 
 ### 2.2 Level data
 
 | # | Feature in the original | Status here |
 | --- | --- | --- |
-| 7 | **Hundreds of levels**, shipped as level sets | Four hand-made levels |
+| 7 | **Hundreds of levels**, shipped as level sets | Five hand-made levels |
 | 8 | **Levels larger than one screen.** MulgEd allows up to 37×33 tiles, so a level scrolls or pages | Single screen only |
 | 9 | **`.pdb` level set reading** (Palm database files) | Not started |
 | 10 | **`.lev` level set reading** | Not started |
 | 11 | **A level editor** | Not started; MulgEd already exists and is the reference |
-| 12 | **Channels.** Activator tiles are wired to activated tiles, which is how levels build their puzzles; the level format carries those connections | Not started, and the level format here has no way to express them yet |
+| 12 | **Channels.** Activator tiles are wired to activated tiles, which is how levels build their puzzles; the level format carries those connections | **done** — `levels.js` carries a `wiring` list of `{ row, col, channel }`, 32 channels as in the original. The original packs the channel into a data byte beside each tile; a `.lev` reader would unpack it into this shape |
 
 ### 2.3 Tile behaviours
 
@@ -73,10 +77,10 @@ Ordered roughly by how much each one blocks the rest.
 | # | Element | Tiles | Status |
 | --- | --- | --- | --- |
 | 13 | **Corner collision.** Bouncing off a wall *corner*, not just its flat side | — | Missing; the known gap in the movement code |
-| 14 | **Switches**, low and high, that activate a channel when touched | 009, 010 | Inert walls |
-| 15 | **Gates** that open and close on a channel | 011–018 | Closed gates are walls; open ones are floor; nothing switches them |
+| 14 | **Switches**, low and high, that activate a channel when touched | 009, 010 | **done** — bumping one throws its channel and the tile shows which way it is set |
+| 15 | **Gates** that open and close on a channel | 011–018 | **done** for the closed/open pairs (011/014, 015/018); the frames between them (012, 013, 016, 017) are not animated |
 | 16 | **Swings** — through one way, then back | 019–022 | Missing |
-| 17 | **Ventilator** — sucks the ball in and you lose, when switched on | 023–026 | Missing |
+| 17 | **Ventilator** — sucks the ball in and you lose, when switched on | 023–026 | Missing; it is channel-driven, so it is ready to be added now |
 | 18 | **Hole** — pulls the ball towards its centre | 027 | Missing |
 | 19 | **Bump** — pushes the ball away from its centre | 028 | Missing |
 | 20 | **Dice** — rolled when the ball touches them, landing on a random face | 029–034 | Missing |
@@ -89,8 +93,8 @@ Ordered roughly by how much each one blocks the rest.
 | 27 | **Grooves** — pull the ball towards their centre | 053–068 | Missing; currently plain floor |
 | 28 | **Ramparts** — push the ball away from their centre | 069–084 | Missing; currently plain floor |
 | 29 | **Descending floors** — collapse after two more crossings | 085, 086, 087 | Only the spent one (087) is deadly; 085/086 do not wear out yet |
-| 30 | **Floor switches** — hidden switches pressed by the ball | 088, 089 | Missing |
-| 31 | **Flip tiles** — toggle an X and a Y channel | 090, 091 | Missing |
+| 30 | **Floor switches** — hidden switches pressed by the ball | 088, 089 | **done** — held on only while the ball is on the square. Whether the original latches instead is not stated; this is the reading of "when the ball presses it, it activates" |
+| 31 | **Flip tiles** — toggle an X and a Y channel | 090, 091 | Missing; they need two channels per cell, which the `wiring` list does not carry yet |
 | 32 | **Parachute** — lets the ball hover over pits, without steering | 095 | Missing |
 | 33 | **Coin slot** — activated by spending a coin | 102 | Missing; coins are score, not currency |
 | 34 | **Letters and notes** — collected, then read | 007 | Missing |
@@ -123,9 +127,9 @@ Ordered roughly by how much each one blocks the rest.
    magnets. They are all the same shape of change to the movement code, and they
    are what makes the original's levels play the way they do. *(items 18, 19, 25,
    27, 28, 38)*
-2. **Switches and channels** — the level format needs to carry connections
-   first, then switches, gates, floor switches, flip tiles, locks and the coin
-   slot follow. *(items 12, 14, 15, 21, 30, 31, 33)*
+2. **The rest of the channel-driven tiles** — the ventilator, flip tiles (which
+   need two channels per square), locks and keys, and the coin slot, now that
+   channels exist. *(items 17, 21, 31, 33)*
 3. **Things that move or change** — boxes, descending floors, walkers, beetles,
    bombs. *(items 22, 23, 24, 26, 29, 35, 37)*
 4. **Content** — multi-screen levels, then the `.pdb` / `.lev` readers so the

@@ -10,6 +10,19 @@ function forEachLevel(t, check) {
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 
+// A wired gate is a wall now, but a switch somewhere can open it, so the walk
+// below is allowed through it.
+function canBeOpened(level, row, col) {
+	var wired = (level.wiring || []).some(function(wire) {
+		return wire.row === row && wire.col === col
+	})
+
+	if (!wired) return false
+
+	var partner = tiles.activatedPartner(level.tiles[row][col])
+	return partner !== null && !tiles.isWall(partner)
+}
+
 var STEPS = [
 	{ row: -1, col: 0, direction: 'up' },
 	{ row: 1, col: 0, direction: 'down' },
@@ -42,7 +55,7 @@ function reachableFromStart(level) {
 			if (row < 0 || col < 0 || row >= height || col >= width) return
 
 			var tile = level.tiles[row][col]
-			if (tiles.isWall(tile)) return
+			if (tiles.isWall(tile) && !canBeOpened(level, row, col)) return
 			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
 
 			queue.push({ row: row, col: col })
@@ -110,6 +123,44 @@ test('every coin in a level can be reached', function(t) {
 				t.ok(reachable[rowIndex + ',' + colIndex],
 					name + ' coin at ' + rowIndex + ',' + colIndex + ' is reachable')
 			})
+		})
+	})
+
+	t.end()
+})
+
+test('every wired square is something a channel can act on', function(t) {
+	forEachLevel(t, function(level, name) {
+		(level.wiring || []).forEach(function(wire) {
+			var where = name + ' at ' + wire.row + ',' + wire.col
+
+			t.ok(wire.channel >= 0 && wire.channel < tiles.CHANNELS, where + ' has a channel in range')
+
+			var tile = level.tiles[wire.row][wire.col]
+			var usable = tiles.switchForms(tile) !== null || tiles.activatedPartner(tile) !== null
+
+			t.ok(usable, where + ' is a switch or something switchable')
+		})
+	})
+
+	t.end()
+})
+
+test('every channel has both a switch and something to switch', function(t) {
+	forEachLevel(t, function(level, name) {
+		var byChannel = {};
+
+		(level.wiring || []).forEach(function(wire) {
+			var tile = level.tiles[wire.row][wire.col]
+			byChannel[wire.channel] = byChannel[wire.channel] || { switches: 0, activated: 0 }
+
+			if (tiles.switchForms(tile)) byChannel[wire.channel].switches++
+			else byChannel[wire.channel].activated++
+		})
+
+		Object.keys(byChannel).forEach(function(channel) {
+			t.ok(byChannel[channel].switches > 0, name + ' channel ' + channel + ' has a switch')
+			t.ok(byChannel[channel].activated > 0, name + ' channel ' + channel + ' has something to switch')
 		})
 	})
 

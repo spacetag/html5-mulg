@@ -17,6 +17,14 @@ var TILE = {
     FLOOR: 4,
     TARGET_CROSS: 5,    // the exit
     BLOCK: 6,           // the basic wall
+    SWITCH_LOW: 9,      // a switch the ball bumps, off
+    SWITCH_HIGH: 10,    // the same switch, on
+    VGATE_CLOSED: 11,
+    VGATE_OPEN: 14,
+    HGATE_CLOSED: 15,
+    HGATE_OPEN: 18,
+    FLOOR_SWITCH_UP: 88,   // hidden in the floor, held down by the ball
+    FLOOR_SWITCH_DOWN: 89,
     DEATH_CUBE: 42,     // deadly on contact
     ICY_FLOOR: 43,      // no friction
     ONE_WAY_LEFT: 44,
@@ -28,6 +36,25 @@ var TILE = {
     OIL: 111,           // slippery, and the player barely steers
     MUD: 112            // slows the ball to a stop
 }
+
+// The original wires activators to activated tiles through 32 channels. An
+// activated tile has two forms and shows the other one while its channel is on.
+var PARTNERS = {}
+
+function pair(a, b) {
+    PARTNERS[a] = b
+    PARTNERS[b] = a
+}
+
+pair(TILE.EMPTY_PIT, TILE.FLOOR)        // a pit fills in, a floor drops away
+pair(TILE.VGATE_CLOSED, TILE.VGATE_OPEN)
+pair(TILE.HGATE_CLOSED, TILE.HGATE_OPEN)
+
+// Switches show their own channel's state, so they have two forms as well.
+var SWITCH_FORMS = [
+    { off: TILE.SWITCH_LOW, on: TILE.SWITCH_HIGH, momentary: false },
+    { off: TILE.FLOOR_SWITCH_UP, on: TILE.FLOOR_SWITCH_DOWN, momentary: true }
+]
 
 // How a square treats the ball rolling over it. `decayOn` applies while the
 // player is pushing, `decayOff` while the ball coasts, and `control` scales how
@@ -118,6 +145,23 @@ function surface(tileNumber) {
     return SURFACES[tileNumber] || FLOOR_SURFACE
 }
 
+// The other form of a tile that can be switched, or null if it has none.
+function activatedPartner(tileNumber) {
+    return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
+}
+
+// The pair of forms for a switch, or null if this tile is not one. A momentary
+// switch is held on only while the ball is on it; the other kind toggles.
+function switchForms(tileNumber) {
+    for (var i = 0; i < SWITCH_FORMS.length; i++) {
+        if (SWITCH_FORMS[i].off === tileNumber || SWITCH_FORMS[i].on === tileNumber) {
+            return SWITCH_FORMS[i]
+        }
+    }
+
+    return null
+}
+
 module.exports = {
     FLOOR: FLOOR,
     WALL: WALL,
@@ -134,5 +178,8 @@ module.exports = {
     isCoin: isCoin,
     coinValue: coinValue,
     oneWayDirection: oneWayDirection,
-    surface: surface
+    surface: surface,
+    activatedPartner: activatedPartner,
+    switchForms: switchForms,
+    CHANNELS: 32
 }

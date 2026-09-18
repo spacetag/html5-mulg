@@ -135,6 +135,26 @@ which is why a level can be larger than one screen.
 | 145 | Magnet - positive | B | This magnet pulls the ball towards it. The closer the ball, the harder the pull |
 | 146 | Magnet - netgative | B | This magnet pushes the ball away from it. The closer the ball, the harder the push |
 
+## The level format
+
+Also from MulgEd, and worth knowing before the `.lev` / `.pdb` readers get
+written:
+
+- A level is a **name, a width, a height and a grid of cells**. There is **no
+  time limit stored in a level**, so a countdown is not something the level data
+  asks for.
+- A cell is **two bytes: a tile number and a data byte**.
+- For a connectable tile, the low five bits of the data byte are its **channel,
+  0 to 31** (`CT_CONNECTABLE`, "user can connect to channel (0..31)"), and bit
+  `0x80` marks the activated state — an open gate is the closed gate's tile with
+  that bit set.
+- The data byte also carries a few special cases on otherwise ordinary tiles: on
+  a floor tile, `0xff` marks the **level's starting point**, `0x20` a descending
+  floor with three crossings left, and `0x40` / `0x80` the reverser pair.
+- A screen is **9 tiles across and 8 down, overlapping by one**: MulgEd sizes a
+  level as `screens × 9 + 1` by `screens × 8 + 1`, so a one-screen level is 10×9
+  tiles. That is exactly the board this port draws.
+
 ## Notes that do not fit the table
 
 - **Switches and channels.** Switches (009/010), floor switches (088/089), flip
