@@ -16,8 +16,8 @@ versus what this port does today, and what is still missing.
   - [ ] Be able to navigate through the screens (test) with arrow keys
   - [ ] Make sure screens wrap if appropriate
 - [ ] Get actual level file read in and displayed
-  - [ ] Create JS Object/JS Array/JSON String level format
-  - [ ] Be able to read in JS Object/JS Array/JSON String levelsets
+  - [x] Create JS Object/JS Array/JSON String level format
+  - [x] Be able to read in JS Object/JS Array/JSON String levelsets
   - [ ] Be able to read in .pdb format levelsets
   - [ ] Be able to read in .lev format levelsets
 
@@ -35,6 +35,7 @@ versus what this port does today, and what is still missing.
 
 #### Game mechanics
 - [ ] Make timer work (with appropriately scaled time from original Mulg running on Palm III emulator)
+  - [x] Show a per-level clock
 - [ ] Create highscore table
 - [ ] Create level selector
 - [ ] Create game pack selector

@@ -44,26 +44,27 @@ These work in the current build (`index.js`, `collision-checking.js`, `index.htm
 
 ## 2. Missing
 
-Ordered roughly by how much each one blocks the rest.
+Ordered roughly by how much each one blocks the rest. Rows marked **done** were
+picked up in the first pass of work off this list; everything else is still open.
 
 ### 2.1 The game loop itself — nothing here is a game yet
 
 | # | Feature in the original | Status here | Source |
 | --- | --- | --- | --- |
-| 1 | **A goal.** The marble reaches an exit and the level is complete | No goal tile, no win condition — the level cannot be finished | doc, art (tile 037) |
-| 2 | **Level progression.** *"As you complete each level you are allowed to proceed to the next"* | No concept of a next level | doc |
-| 3 | **Death and lives.** Falling in a hole/water, or hitting something deadly, costs you | Nothing can hurt the marble | art (002 hole, 042 skull, 113 water) |
-| 4 | **Restart the current level** | No restart | doc |
-| 5 | **Timer**, scaled from the original's Palm III timing | Not started | repo |
-| 6 | **Score / coins.** Collectible gold coins with values | Not started | art (098–101) |
+| 1 | **A goal.** The marble reaches an exit and the level is complete | **done** — tile 037 finishes the level | doc, art (tile 037) |
+| 2 | **Level progression.** *"As you complete each level you are allowed to proceed to the next"* | **done** — R moves you on, and finishing the last level wins the game | doc |
+| 3 | **Death and lives.** Falling in a hole/water, or hitting something deadly, costs you | **done** — three lives, deadly squares cost one | art (002 hole, 042 skull, 113 water) |
+| 4 | **Restart the current level** | **done** — R, which also gives back the coins and the score for this level | doc |
+| 5 | **Timer**, scaled from the original's Palm III timing | **partly** — a per-level clock counts up in the HUD; whether the original counted down, and at what rate, is still unknown | repo |
+| 6 | **Score / coins.** Collectible gold coins with values | **done** — tiles 098–101, worth 1 and 5 | art (098–101) |
 | 7 | **High-score table** | Not started | repo |
 
 ### 2.2 Level data
 
 | # | Feature in the original | Status here | Source |
 | --- | --- | --- | --- |
-| 8 | **A level data format**, separate from code | One array literal inline in `index.js` | repo |
-| 9 | **Hundreds of levels**, shipped as level sets | One level | doc |
+| 8 | **A level data format**, separate from code | **done** — `levels.js`, one entry per level with `name`, `start` and `tiles` | repo |
+| 9 | **Hundreds of levels**, shipped as level sets | Three levels | doc |
 | 10 | **Multi-screen levels.** Levels larger than one screen, scrolling/paging as the marble crosses | Single screen only | repo |
 | 11 | **`.pdb` level set reading** (Palm database files) | Not started | repo |
 | 12 | **`.lev` level set reading** | Not started | repo |
@@ -78,12 +79,12 @@ art in `tiles/` implies at least this element vocabulary:
 
 | # | Element | Tiles | Status | Source |
 | --- | --- | --- | --- | --- |
-| 16 | **Walls of several materials** — green block, stone, striped barrier, wood | 006, 011–018, 038–039, 053–089, 112 | Only tile 006 collides; all wall art is inert | art |
+| 16 | **Walls of several materials** — green block, stone, striped barrier, wood | 006, 011–018, 038–039, 053–089, 112 | **partly** — `tiles.js` now blocks the green block, the striped barriers, the wooden blocks and the void; the 053–089 stone textures are still unclassified | art |
 | 17 | **Corner collision.** Bouncing off a wall *corner*, not just its flat side | 006 etc. | Missing — the known gap in `updateBallPos()` | repo |
-| 18 | **Exit / goal** | 037 | Missing | art, doc |
+| 18 | **Exit / goal** | 037 | **done** | art, doc |
 | 19 | **Slippery ice** — *"slippery ice"* | 115–118 | Missing | doc, art |
-| 20 | **Water** — the marble sinks | 113–114 | Missing | art |
-| 21 | **Holes** — the marble drops through | 002, 097 | Missing | art |
+| 20 | **Water** — the marble sinks | 113–114 | **partly** — classified as deadly, but nothing yet distinguishes sinking from any other death, and no level uses it | art |
+| 21 | **Holes** — the marble drops through | 002, 097 | **partly** — classified as deadly, same caveat as water | art |
 | 22 | **Flipper bumpers** — *"flipper bumpers"*, the marble is kicked away | 023–026, 120–123 | Missing | doc, art |
 | 23 | **Teleporters** — enter one pad, leave from its partner | 040, 041, 144 | Missing | art |
 | 24 | **Magnets**, attracting (`+`) and repelling (`−`) | 145, 146 | Missing | art |
@@ -114,8 +115,8 @@ art in `tiles/` implies at least this element vocabulary:
 
 | # | Item | Status |
 | --- | --- | --- |
-| 42 | **The test suite throws.** `tests/collision-checking.js` calls `collisionChecker(level)` with no collision-tile list, and `collision-checking.js` then dereferences `undefined.indexOf` | `npm test` fails on the first assertion |
-| 43 | **The page relies on quirks mode.** No doctype, and `setBallPos()` assigns unitless numbers to `style.left`/`style.top`, which only parse because the page is in quirks mode | Works by accident |
+| 42 | **The test suite throws.** `tests/collision-checking.js` calls `collisionChecker(level)` with no collision-tile list, and `collision-checking.js` then dereferences `undefined.indexOf` | **done** — the collision list defaults to the green block, and the suite covers the tile registry, the level data and the game rules. `tape` was also pinned forward from 4.3.0, which dropped tests at random on modern Node |
+| 43 | **The page relies on quirks mode.** No doctype, and `setBallPos()` assigns unitless numbers to `style.left`/`style.top`, which only parse because the page is in quirks mode | **done** — the page has a doctype and the positions carry `px` |
 | 44 | **`build.js` is a committed bundle** that has to be rebuilt by hand after every source change | Easy to forget |
 
 ---
