@@ -3,6 +3,9 @@ An HTML5 version of Till Harbaum's [classic Palm OS game](http://www.harbaum.org
 
 You can play it [here](https://spacetag.github.io/html5-mulg/).
 
+See [FEATURES.md](FEATURES.md) for a comparison of what the original Palm game does
+versus what this port does today, and what is still missing.
+
 # Todos
 #### Level display
 - [x] Decide if you want to use Canvas or CSS
