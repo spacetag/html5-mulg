@@ -4,7 +4,9 @@ An HTML5 version of Till Harbaum's [classic Palm OS game](http://www.harbaum.org
 You can play it [here](https://spacetag.github.io/html5-mulg/).
 
 See [FEATURES.md](FEATURES.md) for a comparison of what the original Palm game does
-versus what this port does today, and what is still missing.
+versus what this port does today, and what is still missing, and
+[docs/original-tiles.md](docs/original-tiles.md) for what each of the 147 original
+tiles actually is.
 
 # Todos
 #### Level display

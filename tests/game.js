@@ -2,12 +2,12 @@ var test = require('tape')
 var createGame = require('../game')
 var tiles = require('../tiles')
 
-var W = tiles.TILE.WALL
+var W = tiles.TILE.BLOCK
 var F = tiles.TILE.FLOOR
-var G = tiles.TILE.GOAL
+var G = tiles.TILE.TARGET_CROSS
 var C = tiles.TILE.COIN_1
 var V = tiles.TILE.COIN_5
-var X = tiles.TILE.SKULL
+var X = tiles.TILE.DEATH_CUBE
 
 // A one-row corridor the ball can be rolled along from left to right.
 function corridor(name, row) {
@@ -21,15 +21,16 @@ function corridor(name, row) {
 	}
 }
 
+// Holds a direction down for a while. 'none' lets the ball coast.
 function roll(game, direction, ticks) {
-	game.input[direction] = true
+	if (direction !== 'none') game.input[direction] = true
 
 	for (var i = 0; i < ticks; i++) {
 		game.tick(16)
 		if (game.status !== createGame.PLAYING) break
 	}
 
-	game.input[direction] = false
+	if (direction !== 'none') game.input[direction] = false
 }
 
 test('a new game starts on the first level, with lives and no score', function(t) {
@@ -229,5 +230,74 @@ test('coins picked up on a finished level are banked', function(t) {
 
 	game.advance()
 	t.equal(game.score, 1, "only the second level's coin is given back")
+	t.end()
+})
+
+test('an empty pit costs a life, like the death cube', function(t) {
+	var game = createGame([ corridor('one', [ F, tiles.TILE.EMPTY_PIT, G ]) ])
+
+	roll(game, 'right', 300)
+
+	t.equal(game.status, createGame.DEAD)
+	t.equal(game.lives, 2)
+	t.end()
+})
+
+test('ice does not slow the ball down, floor does', function(t) {
+	var I = tiles.TILE.ICY_FLOOR
+
+	function coastingSpeed(row) {
+		var game = createGame([ corridor('one', row) ])
+
+		roll(game, 'right', 30)   // get it moving
+		roll(game, 'none', 40)    // then let go and coast
+
+		return Math.abs(game.ball.sx)
+	}
+
+	var onIce = coastingSpeed([ I, I, I, I, I, I, I, I ])
+	var onFloor = coastingSpeed([ F, F, F, F, F, F, F, F ])
+
+	t.ok(onIce > onFloor, 'the ball is still moving faster on ice (' + onIce + ' vs ' + onFloor + ')')
+	t.end()
+})
+
+test('mud brings the ball to a stop sooner than floor does', function(t) {
+	var M = tiles.TILE.MUD
+
+	function coastingSpeed(row) {
+		var game = createGame([ corridor('one', row) ])
+
+		roll(game, 'right', 30)
+		roll(game, 'none', 20)
+
+		return Math.abs(game.ball.sx)
+	}
+
+	t.ok(coastingSpeed([ M, M, M, M, M, M, M, M ]) < coastingSpeed([ F, F, F, F, F, F, F, F ]))
+	t.end()
+})
+
+test('a one-way tile will not let the ball turn back through it', function(t) {
+	var R = tiles.TILE.ONE_WAY_RIGHT
+	var game = createGame([ corridor('one', [ F, R, F, F, F, F ]) ])
+
+	roll(game, 'right', 120)
+	var past = game.ballSquare().col
+	t.ok(past > 2, 'the ball got through the one-way going right')
+
+	roll(game, 'left', 400)
+
+	t.ok(game.ballSquare().col > 2, 'and cannot get back past it')
+	t.end()
+})
+
+test('a one-way tile can still be entered the way it points', function(t) {
+	var R = tiles.TILE.ONE_WAY_RIGHT
+	var game = createGame([ corridor('one', [ R, F, F, F ]) ])
+
+	roll(game, 'right', 200)
+
+	t.ok(game.ballSquare().col > 1, 'the ball rolled on through')
 	t.end()
 })

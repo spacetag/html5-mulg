@@ -14,12 +14,15 @@ module.exports = function makeCollisionCheckingFunction(level, blocks) {
         return blocks.indexOf(tileNumber) !== -1
     }
 
-    return function checkForCollision(row, col) {
+    // `direction` is which way the ball is heading into the square, for tiles
+    // like the one-way arrows that only block from one side. A list of tile
+    // numbers ignores it.
+    return function checkForCollision(row, col, direction) {
         // http://stackoverflow.com/questions/4228356/integer-division-in-javascript
         row = Math.floor((row + levelHeight) % levelHeight)
         col = Math.floor((col + levelWidth)  % levelWidth)
 
-        return blocksTile(level[row][col])
+        return blocksTile(level[row][col], direction)
     }
 }
 
@@ -35,12 +38,15 @@ var FPS_MULTIPLIER = 3 // based on 20fps
 var OFFSET_X = 14
 var OFFSET_Y = 14
 
-var BALL_SPEED_DECAY_ON = 0.99
-var BALL_SPEED_DECAY_OFF = 0.9
 var BALL_SPEED_THRESH = 0.1
+// Floor pushes the ball towards a speed of 99 and never past it, so this caps
+// the frictionless surfaces without changing how floor has always felt.
+var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
 var LIVES_PER_GAME = 3
+
+var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -96,6 +102,15 @@ module.exports = function createGame(levels, options) {
         return { row: row, col: col, tile: game.grid[row][col] }
     }
 
+    // A square stops the ball if it is a wall, or if it is a one-way arrow the
+    // ball is trying to enter against.
+    function blocks(tileNumber, direction) {
+        if (tiles.isWall(tileNumber)) return true
+
+        var oneWay = tiles.oneWayDirection(tileNumber)
+        return oneWay !== null && oneWay === OPPOSITE[direction]
+    }
+
     /***** Loading and restarting *****/
 
     function loadLevel(index, keepScore) {
@@ -103,7 +118,7 @@ module.exports = function createGame(levels, options) {
         game.level = levels[index]
         // Coins vanish as they are collected, so play on a copy of the level.
         game.grid = copyGrid(game.level.tiles)
-        checkForCollision = collisionChecker(game.grid, tiles.isWall)
+        checkForCollision = collisionChecker(game.grid, blocks)
 
         game.score = keepScore ? scoreAtLevelStart : 0
         scoreAtLevelStart = game.score
@@ -133,24 +148,42 @@ module.exports = function createGame(levels, options) {
 
     /***** Movement *****/
 
+    function clamp(speed) {
+        if (speed > BALL_MAX_SPEED) return BALL_MAX_SPEED
+        if (speed < -BALL_MAX_SPEED) return -BALL_MAX_SPEED
+        return speed
+    }
+
     function updateBallPos(updateMomentum) {
         var ball = game.ball
+        var under = ballSquare().tile
+        var surface = tiles.surface(under)
 
         if (updateMomentum) {
-            var extrax = (game.input.right ? 1 : 0) - (game.input.left ? 1 : 0)
-            var extray = (game.input.down ? 1 : 0) - (game.input.up ? 1 : 0)
-            ball.sx = (ball.sx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
-            ball.sy = (ball.sy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+            var extrax = ((game.input.right ? 1 : 0) - (game.input.left ? 1 : 0)) * surface.control
+            var extray = ((game.input.down ? 1 : 0) - (game.input.up ? 1 : 0)) * surface.control
+            ball.sx = clamp((ball.sx + extrax) * (extrax ? surface.decayOn : surface.decayOff))
+            ball.sy = clamp((ball.sy + extray) * (extray ? surface.decayOn : surface.decayOff))
         }
 
-        if ((ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1)) ||
-            (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1))) {
+        if ((ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1, 'right')) ||
+            (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1, 'left'))) {
             ball.sx = -ball.sx
         }
 
-        if ((ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol())) ||
-            (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol()))) {
+        if ((ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol(), 'down')) ||
+            (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol(), 'up'))) {
             ball.sy = -ball.sy
+        }
+
+        // A one-way arrow will not let the ball turn back through it.
+        var oneWay = tiles.oneWayDirection(under)
+
+        if (oneWay) {
+            if (oneWay === 'left' && ball.sx > 0) ball.sx = 0
+            if (oneWay === 'right' && ball.sx < 0) ball.sx = 0
+            if (oneWay === 'up' && ball.sy > 0) ball.sy = 0
+            if (oneWay === 'down' && ball.sy < 0) ball.sy = 0
         }
 
         // http://www.w3schools.com/jsref/jsref_abs.asp
@@ -363,19 +396,25 @@ engine.run()
 // A level is:
 //   name  - shown in the HUD
 //   start - { row, col } the marble's starting square
-//   tiles - a grid of tile numbers from tiles/ (see tiles.js for what they mean)
+//   tiles - a grid of tile numbers from tiles/ (docs/original-tiles.md says what
+//           each number is in the original game)
 //
 // Every row of a level must be the same length. Levels may differ in size from
-// each other; the board is rendered from the grid.
+// each other; the board is rendered from the grid. The original allowed levels
+// up to 37x33, larger than one screen; these all fit on one for now.
 
 var tiles = require('./tiles')
 
 var F = tiles.TILE.FLOOR
-var W = tiles.TILE.WALL
-var G = tiles.TILE.GOAL
+var W = tiles.TILE.BLOCK
+var G = tiles.TILE.TARGET_CROSS
 var C = tiles.TILE.COIN_1
 var V = tiles.TILE.COIN_5
-var X = tiles.TILE.SKULL
+var X = tiles.TILE.DEATH_CUBE
+var P = tiles.TILE.EMPTY_PIT
+var I = tiles.TILE.ICY_FLOOR
+var M = tiles.TILE.MUD
+var D = tiles.TILE.ONE_WAY_DOWN
 
 module.exports = [
     {
@@ -409,7 +448,7 @@ module.exports = [
         ]
     },
     {
-        name: 'Mind the Skulls',
+        name: 'Mind the Death Cubes',
         start: { row: 1, col: 8 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
@@ -420,6 +459,21 @@ module.exports = [
             [ W, C, F, F, F, W, F, F, F, W ],
             [ W, F, W, W, F, W, W, W, X, W ],
             [ W, F, F, W, F, F, F, F, F, W ],
+            [ W, W, W, W, W, W, W, W, W, W ]
+        ]
+    },
+    {
+        name: 'Slippery',
+        start: { row: 1, col: 1 },
+        tiles: [
+            [ W, W, W, W, W, W, W, W, W, W ],
+            [ W, F, I, I, I, I, I, I, C, W ],
+            [ W, W, W, W, W, W, W, W, D, W ],
+            [ W, C, M, M, F, F, F, F, F, W ],
+            [ W, F, W, W, W, W, W, W, W, W ],
+            [ W, F, F, F, P, F, F, F, F, W ],
+            [ W, W, W, W, W, W, W, W, F, W ],
+            [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ]
     }
@@ -1335,30 +1389,52 @@ module.exports.tileSrc = tileSrc
 module.exports.TILE_SIZE = TILE_SIZE
 
 },{}],15:[function(require,module,exports){
-// Semantics for the original Mulg tile set.
+// What the original Mulg tiles are and how they behave.
 //
-// tiles/ holds all 147 tiles from the original Palm game, but the artwork is the
-// only spec we have for most of them, so this registry classifies the ones whose
-// meaning is unambiguous and leaves the rest as plain floor. See FEATURES.md for
-// which behaviours are confirmed and which are inferred from the art.
+// Tile numbers, names and effects come from MulgEd's tile help, not from looking
+// at the artwork. docs/original-tiles.md has the full table and the source.
+// Anything this port does not implement yet is left as plain floor, so an
+// unhandled tile is scenery rather than a wrong guess.
 
 var FLOOR = 'floor'
 var WALL = 'wall'
 var GOAL = 'goal'
 var COIN = 'coin'
 var DEADLY = 'deadly'
+var ONE_WAY = 'one-way'
 
-// Tile numbers worth naming, so level data and game code can read as prose.
 var TILE = {
-    FLOOR: 4,          // plain stone floor
-    WALL: 6,           // green block
-    VOID: 3,           // solid black
-    GOAL: 37,          // the exit
-    SKULL: 42,         // deadly
-    WATER: 113,        // deadly, the marble sinks
-    COIN_1: 98,        // gold coin worth 1
-    COIN_5: 100        // gold coin worth 5
+    EMPTY_PIT: 3,       // the ball falls in and the level is lost
+    FLOOR: 4,
+    TARGET_CROSS: 5,    // the exit
+    BLOCK: 6,           // the basic wall
+    DEATH_CUBE: 42,     // deadly on contact
+    ICY_FLOOR: 43,      // no friction
+    ONE_WAY_LEFT: 44,
+    ONE_WAY_RIGHT: 45,
+    ONE_WAY_UP: 46,
+    ONE_WAY_DOWN: 47,
+    COIN_1: 98,
+    COIN_5: 100,
+    OIL: 111,           // slippery, and the player barely steers
+    MUD: 112            // slows the ball to a stop
 }
+
+// How a square treats the ball rolling over it. `decayOn` applies while the
+// player is pushing, `decayOff` while the ball coasts, and `control` scales how
+// much a keypress is worth. Floor keeps the numbers the port has always used.
+var SURFACES = {}
+var FLOOR_SURFACE = { decayOn: 0.99, decayOff: 0.9, control: 1 }
+
+SURFACES[TILE.ICY_FLOOR] = { decayOn: 1, decayOff: 1, control: 1 }
+SURFACES[TILE.OIL] = { decayOn: 1, decayOff: 1, control: 0.25 }
+SURFACES[TILE.MUD] = { decayOn: 0.6, decayOff: 0.45, control: 1 }
+
+var ONE_WAY_DIRECTIONS = {}
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_LEFT] = 'left'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_RIGHT] = 'right'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_UP] = 'up'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_DOWN] = 'down'
 
 var KINDS = {}
 
@@ -1370,18 +1446,35 @@ function classify(kind, tileNumbers, extra) {
     })
 }
 
-// Blocks the marble. The striped barriers, the wooden blocks and the black void
-// all read as solid in the original art.
-classify(WALL, [ TILE.VOID, TILE.WALL, 11, 12, 13, 14, 15, 16, 17, 18, 38, 39, 112 ])
+// Blocking. The switches, boxes, Hanoi pieces, walkers, magnets and the closed
+// gates all have their own behaviour in the original; until that is written they
+// are at least solid, which is how they read on the board.
+classify(WALL, [
+    TILE.BLOCK,
+    9, 10,          // switches, low and high
+    11, 15,         // gates, closed
+    38, 113,        // heavy box, light box
+    133, 134, 135, 136, 137, 138, 139, // Hanoi tower pieces
+    140, 141, 142, 143,                // walkers
+    144,            // exchange
+    145, 146        // magnets
+])
 
-classify(GOAL, [ TILE.GOAL ])
-classify(DEADLY, [ 2, TILE.SKULL, 97, TILE.WATER, 114 ])
-classify(COIN, [ TILE.COIN_1, 99 ], { value: 1 })
-classify(COIN, [ TILE.COIN_5, 101 ], { value: 5 })
+classify(GOAL, [ TILE.TARGET_CROSS ])
+
+// 87 is a descending floor with no crossings left, so stepping on it is a fall.
+classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
+
+classify(COIN, [ TILE.COIN_1 ], { value: 1 })
+classify(COIN, [ TILE.COIN_5 ], { value: 5 })
+
+Object.keys(ONE_WAY_DIRECTIONS).forEach(function(tileNumber) {
+    classify(ONE_WAY, [ Number(tileNumber) ], { direction: ONE_WAY_DIRECTIONS[tileNumber] })
+})
 
 var FLOOR_INFO = { kind: FLOOR }
 
-// Anything not classified above is scenery the marble rolls straight over.
+// Everything else is scenery the ball rolls straight over.
 function tileInfo(tileNumber) {
     return KINDS[tileNumber] || FLOOR_INFO
 }
@@ -1406,19 +1499,33 @@ function coinValue(tileNumber) {
     return isCoin(tileNumber) ? tileInfo(tileNumber).value : 0
 }
 
+// The direction a one-way tile lets the ball travel, or null if it is not one.
+function oneWayDirection(tileNumber) {
+    var info = tileInfo(tileNumber)
+    return info.kind === ONE_WAY ? info.direction : null
+}
+
+function surface(tileNumber) {
+    return SURFACES[tileNumber] || FLOOR_SURFACE
+}
+
 module.exports = {
     FLOOR: FLOOR,
     WALL: WALL,
     GOAL: GOAL,
     COIN: COIN,
     DEADLY: DEADLY,
+    ONE_WAY: ONE_WAY,
     TILE: TILE,
+    FLOOR_SURFACE: FLOOR_SURFACE,
     tileInfo: tileInfo,
     isWall: isWall,
     isGoal: isGoal,
     isDeadly: isDeadly,
     isCoin: isCoin,
-    coinValue: coinValue
+    coinValue: coinValue,
+    oneWayDirection: oneWayDirection,
+    surface: surface
 }
 
 },{}]},{},[3]);

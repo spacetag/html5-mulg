@@ -9,12 +9,15 @@ var FPS_MULTIPLIER = 3 // based on 20fps
 var OFFSET_X = 14
 var OFFSET_Y = 14
 
-var BALL_SPEED_DECAY_ON = 0.99
-var BALL_SPEED_DECAY_OFF = 0.9
 var BALL_SPEED_THRESH = 0.1
+// Floor pushes the ball towards a speed of 99 and never past it, so this caps
+// the frictionless surfaces without changing how floor has always felt.
+var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
 var LIVES_PER_GAME = 3
+
+var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -70,6 +73,15 @@ module.exports = function createGame(levels, options) {
         return { row: row, col: col, tile: game.grid[row][col] }
     }
 
+    // A square stops the ball if it is a wall, or if it is a one-way arrow the
+    // ball is trying to enter against.
+    function blocks(tileNumber, direction) {
+        if (tiles.isWall(tileNumber)) return true
+
+        var oneWay = tiles.oneWayDirection(tileNumber)
+        return oneWay !== null && oneWay === OPPOSITE[direction]
+    }
+
     /***** Loading and restarting *****/
 
     function loadLevel(index, keepScore) {
@@ -77,7 +89,7 @@ module.exports = function createGame(levels, options) {
         game.level = levels[index]
         // Coins vanish as they are collected, so play on a copy of the level.
         game.grid = copyGrid(game.level.tiles)
-        checkForCollision = collisionChecker(game.grid, tiles.isWall)
+        checkForCollision = collisionChecker(game.grid, blocks)
 
         game.score = keepScore ? scoreAtLevelStart : 0
         scoreAtLevelStart = game.score
@@ -107,24 +119,42 @@ module.exports = function createGame(levels, options) {
 
     /***** Movement *****/
 
+    function clamp(speed) {
+        if (speed > BALL_MAX_SPEED) return BALL_MAX_SPEED
+        if (speed < -BALL_MAX_SPEED) return -BALL_MAX_SPEED
+        return speed
+    }
+
     function updateBallPos(updateMomentum) {
         var ball = game.ball
+        var under = ballSquare().tile
+        var surface = tiles.surface(under)
 
         if (updateMomentum) {
-            var extrax = (game.input.right ? 1 : 0) - (game.input.left ? 1 : 0)
-            var extray = (game.input.down ? 1 : 0) - (game.input.up ? 1 : 0)
-            ball.sx = (ball.sx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
-            ball.sy = (ball.sy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+            var extrax = ((game.input.right ? 1 : 0) - (game.input.left ? 1 : 0)) * surface.control
+            var extray = ((game.input.down ? 1 : 0) - (game.input.up ? 1 : 0)) * surface.control
+            ball.sx = clamp((ball.sx + extrax) * (extrax ? surface.decayOn : surface.decayOff))
+            ball.sy = clamp((ball.sy + extray) * (extray ? surface.decayOn : surface.decayOff))
         }
 
-        if ((ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1)) ||
-            (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1))) {
+        if ((ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1, 'right')) ||
+            (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1, 'left'))) {
             ball.sx = -ball.sx
         }
 
-        if ((ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol())) ||
-            (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol()))) {
+        if ((ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol(), 'down')) ||
+            (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol(), 'up'))) {
             ball.sy = -ball.sy
+        }
+
+        // A one-way arrow will not let the ball turn back through it.
+        var oneWay = tiles.oneWayDirection(under)
+
+        if (oneWay) {
+            if (oneWay === 'left' && ball.sx > 0) ball.sx = 0
+            if (oneWay === 'right' && ball.sx < 0) ball.sx = 0
+            if (oneWay === 'up' && ball.sy > 0) ball.sy = 0
+            if (oneWay === 'down' && ball.sy < 0) ball.sy = 0
         }
 
         // http://www.w3schools.com/jsref/jsref_abs.asp

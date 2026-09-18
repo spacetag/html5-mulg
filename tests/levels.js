@@ -8,9 +8,19 @@ function forEachLevel(t, check) {
 	})
 }
 
-// Walks the level from the start square, refusing to step on walls, and returns
-// the squares it can get to. Deadly squares are reachable on purpose: they are
-// passable, they just cost you a life.
+var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
+
+var STEPS = [
+	{ row: -1, col: 0, direction: 'up' },
+	{ row: 1, col: 0, direction: 'down' },
+	{ row: 0, col: -1, direction: 'left' },
+	{ row: 0, col: 1, direction: 'right' }
+]
+
+// Walks the level from the start square, refusing to step on walls or into a
+// one-way arrow from the wrong side, and returns the squares it can get to.
+// Deadly squares are reachable on purpose: they are passable, they just cost you
+// a life.
 function reachableFromStart(level) {
 	var width = level.tiles[0].length
 	var height = level.tiles.length
@@ -21,16 +31,22 @@ function reachableFromStart(level) {
 		var at = queue.shift()
 		var key = at.row + ',' + at.col
 
-		if (at.row < 0 || at.col < 0 || at.row >= height || at.col >= width) continue
 		if (seen[key]) continue
-		if (tiles.isWall(level.tiles[at.row][at.col])) continue
 
 		seen[key] = at
 
-		queue.push({ row: at.row - 1, col: at.col })
-		queue.push({ row: at.row + 1, col: at.col })
-		queue.push({ row: at.row, col: at.col - 1 })
-		queue.push({ row: at.row, col: at.col + 1 })
+		STEPS.forEach(function(step) {
+			var row = at.row + step.row
+			var col = at.col + step.col
+
+			if (row < 0 || col < 0 || row >= height || col >= width) return
+
+			var tile = level.tiles[row][col]
+			if (tiles.isWall(tile)) return
+			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+
+			queue.push({ row: row, col: col })
+		})
 	}
 
 	return seen

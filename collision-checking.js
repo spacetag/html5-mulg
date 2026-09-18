@@ -13,11 +13,14 @@ module.exports = function makeCollisionCheckingFunction(level, blocks) {
         return blocks.indexOf(tileNumber) !== -1
     }
 
-    return function checkForCollision(row, col) {
+    // `direction` is which way the ball is heading into the square, for tiles
+    // like the one-way arrows that only block from one side. A list of tile
+    // numbers ignores it.
+    return function checkForCollision(row, col, direction) {
         // http://stackoverflow.com/questions/4228356/integer-division-in-javascript
         row = Math.floor((row + levelHeight) % levelHeight)
         col = Math.floor((col + levelWidth)  % levelWidth)
 
-        return blocksTile(level[row][col])
+        return blocksTile(level[row][col], direction)
     }
 }

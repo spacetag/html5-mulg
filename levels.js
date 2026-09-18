@@ -3,19 +3,25 @@
 // A level is:
 //   name  - shown in the HUD
 //   start - { row, col } the marble's starting square
-//   tiles - a grid of tile numbers from tiles/ (see tiles.js for what they mean)
+//   tiles - a grid of tile numbers from tiles/ (docs/original-tiles.md says what
+//           each number is in the original game)
 //
 // Every row of a level must be the same length. Levels may differ in size from
-// each other; the board is rendered from the grid.
+// each other; the board is rendered from the grid. The original allowed levels
+// up to 37x33, larger than one screen; these all fit on one for now.
 
 var tiles = require('./tiles')
 
 var F = tiles.TILE.FLOOR
-var W = tiles.TILE.WALL
-var G = tiles.TILE.GOAL
+var W = tiles.TILE.BLOCK
+var G = tiles.TILE.TARGET_CROSS
 var C = tiles.TILE.COIN_1
 var V = tiles.TILE.COIN_5
-var X = tiles.TILE.SKULL
+var X = tiles.TILE.DEATH_CUBE
+var P = tiles.TILE.EMPTY_PIT
+var I = tiles.TILE.ICY_FLOOR
+var M = tiles.TILE.MUD
+var D = tiles.TILE.ONE_WAY_DOWN
 
 module.exports = [
     {
@@ -49,7 +55,7 @@ module.exports = [
         ]
     },
     {
-        name: 'Mind the Skulls',
+        name: 'Mind the Death Cubes',
         start: { row: 1, col: 8 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
@@ -60,6 +66,21 @@ module.exports = [
             [ W, C, F, F, F, W, F, F, F, W ],
             [ W, F, W, W, F, W, W, W, X, W ],
             [ W, F, F, W, F, F, F, F, F, W ],
+            [ W, W, W, W, W, W, W, W, W, W ]
+        ]
+    },
+    {
+        name: 'Slippery',
+        start: { row: 1, col: 1 },
+        tiles: [
+            [ W, W, W, W, W, W, W, W, W, W ],
+            [ W, F, I, I, I, I, I, I, C, W ],
+            [ W, W, W, W, W, W, W, W, D, W ],
+            [ W, C, M, M, F, F, F, F, F, W ],
+            [ W, F, W, W, W, W, W, W, W, W ],
+            [ W, F, F, F, P, F, F, F, F, W ],
+            [ W, W, W, W, W, W, W, W, F, W ],
+            [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ]
     }

@@ -1,27 +1,49 @@
-// Semantics for the original Mulg tile set.
+// What the original Mulg tiles are and how they behave.
 //
-// tiles/ holds all 147 tiles from the original Palm game, but the artwork is the
-// only spec we have for most of them, so this registry classifies the ones whose
-// meaning is unambiguous and leaves the rest as plain floor. See FEATURES.md for
-// which behaviours are confirmed and which are inferred from the art.
+// Tile numbers, names and effects come from MulgEd's tile help, not from looking
+// at the artwork. docs/original-tiles.md has the full table and the source.
+// Anything this port does not implement yet is left as plain floor, so an
+// unhandled tile is scenery rather than a wrong guess.
 
 var FLOOR = 'floor'
 var WALL = 'wall'
 var GOAL = 'goal'
 var COIN = 'coin'
 var DEADLY = 'deadly'
+var ONE_WAY = 'one-way'
 
-// Tile numbers worth naming, so level data and game code can read as prose.
 var TILE = {
-    FLOOR: 4,          // plain stone floor
-    WALL: 6,           // green block
-    VOID: 3,           // solid black
-    GOAL: 37,          // the exit
-    SKULL: 42,         // deadly
-    WATER: 113,        // deadly, the marble sinks
-    COIN_1: 98,        // gold coin worth 1
-    COIN_5: 100        // gold coin worth 5
+    EMPTY_PIT: 3,       // the ball falls in and the level is lost
+    FLOOR: 4,
+    TARGET_CROSS: 5,    // the exit
+    BLOCK: 6,           // the basic wall
+    DEATH_CUBE: 42,     // deadly on contact
+    ICY_FLOOR: 43,      // no friction
+    ONE_WAY_LEFT: 44,
+    ONE_WAY_RIGHT: 45,
+    ONE_WAY_UP: 46,
+    ONE_WAY_DOWN: 47,
+    COIN_1: 98,
+    COIN_5: 100,
+    OIL: 111,           // slippery, and the player barely steers
+    MUD: 112            // slows the ball to a stop
 }
+
+// How a square treats the ball rolling over it. `decayOn` applies while the
+// player is pushing, `decayOff` while the ball coasts, and `control` scales how
+// much a keypress is worth. Floor keeps the numbers the port has always used.
+var SURFACES = {}
+var FLOOR_SURFACE = { decayOn: 0.99, decayOff: 0.9, control: 1 }
+
+SURFACES[TILE.ICY_FLOOR] = { decayOn: 1, decayOff: 1, control: 1 }
+SURFACES[TILE.OIL] = { decayOn: 1, decayOff: 1, control: 0.25 }
+SURFACES[TILE.MUD] = { decayOn: 0.6, decayOff: 0.45, control: 1 }
+
+var ONE_WAY_DIRECTIONS = {}
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_LEFT] = 'left'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_RIGHT] = 'right'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_UP] = 'up'
+ONE_WAY_DIRECTIONS[TILE.ONE_WAY_DOWN] = 'down'
 
 var KINDS = {}
 
@@ -33,18 +55,35 @@ function classify(kind, tileNumbers, extra) {
     })
 }
 
-// Blocks the marble. The striped barriers, the wooden blocks and the black void
-// all read as solid in the original art.
-classify(WALL, [ TILE.VOID, TILE.WALL, 11, 12, 13, 14, 15, 16, 17, 18, 38, 39, 112 ])
+// Blocking. The switches, boxes, Hanoi pieces, walkers, magnets and the closed
+// gates all have their own behaviour in the original; until that is written they
+// are at least solid, which is how they read on the board.
+classify(WALL, [
+    TILE.BLOCK,
+    9, 10,          // switches, low and high
+    11, 15,         // gates, closed
+    38, 113,        // heavy box, light box
+    133, 134, 135, 136, 137, 138, 139, // Hanoi tower pieces
+    140, 141, 142, 143,                // walkers
+    144,            // exchange
+    145, 146        // magnets
+])
 
-classify(GOAL, [ TILE.GOAL ])
-classify(DEADLY, [ 2, TILE.SKULL, 97, TILE.WATER, 114 ])
-classify(COIN, [ TILE.COIN_1, 99 ], { value: 1 })
-classify(COIN, [ TILE.COIN_5, 101 ], { value: 5 })
+classify(GOAL, [ TILE.TARGET_CROSS ])
+
+// 87 is a descending floor with no crossings left, so stepping on it is a fall.
+classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
+
+classify(COIN, [ TILE.COIN_1 ], { value: 1 })
+classify(COIN, [ TILE.COIN_5 ], { value: 5 })
+
+Object.keys(ONE_WAY_DIRECTIONS).forEach(function(tileNumber) {
+    classify(ONE_WAY, [ Number(tileNumber) ], { direction: ONE_WAY_DIRECTIONS[tileNumber] })
+})
 
 var FLOOR_INFO = { kind: FLOOR }
 
-// Anything not classified above is scenery the marble rolls straight over.
+// Everything else is scenery the ball rolls straight over.
 function tileInfo(tileNumber) {
     return KINDS[tileNumber] || FLOOR_INFO
 }
@@ -69,17 +108,31 @@ function coinValue(tileNumber) {
     return isCoin(tileNumber) ? tileInfo(tileNumber).value : 0
 }
 
+// The direction a one-way tile lets the ball travel, or null if it is not one.
+function oneWayDirection(tileNumber) {
+    var info = tileInfo(tileNumber)
+    return info.kind === ONE_WAY ? info.direction : null
+}
+
+function surface(tileNumber) {
+    return SURFACES[tileNumber] || FLOOR_SURFACE
+}
+
 module.exports = {
     FLOOR: FLOOR,
     WALL: WALL,
     GOAL: GOAL,
     COIN: COIN,
     DEADLY: DEADLY,
+    ONE_WAY: ONE_WAY,
     TILE: TILE,
+    FLOOR_SURFACE: FLOOR_SURFACE,
     tileInfo: tileInfo,
     isWall: isWall,
     isGoal: isGoal,
     isDeadly: isDeadly,
     isCoin: isCoin,
-    coinValue: coinValue
+    coinValue: coinValue,
+    oneWayDirection: oneWayDirection,
+    surface: surface
 }
