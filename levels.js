@@ -147,19 +147,25 @@ module.exports = [
         start: { row: 1, col: 1 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
-            [ W, F, F, F, F, F, B, N, C, W ],
-            [ W, F, W, W, W, W, W, W, F, W ],
-            [ W, C, F, F, B, W, F, F, F, W ],
+            [ W, F, F, F, F, F, F, N, C, W ],
+            [ W, F, W, W, S, W, S, W, F, W ],
+            [ W, C, F, F, F, W, F, F, F, W ],
             [ W, W, W, W, H, W, F, W, W, W ],
             [ W, F, F, F, F, F, F, W, V, W ],
             [ W, W, F, W, W, W, W, W, F, W ],
             [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ],
+        // Both gates used to be held open by a floor plate in the square next to
+        // them, which a gate that kills makes deadly: rolling off the plate is
+        // what starts the gate closing, and the square it closes on is the one the
+        // ball has just rolled into. These are switches set into the wall instead,
+        // so a gate stays open once it is opened, and each of them can be reached
+        // from either side of its gate.
         wiring: [
-            { row: 1, col: 6, channel: 0 },   // the plate in the top corridor
-            { row: 1, col: 7, channel: 0 },   // and the gate it holds open
-            { row: 3, col: 4, channel: 1 },   // the plate at the dead end
+            { row: 2, col: 6, channel: 0 },   // the switch in the top corridor's floor
+            { row: 1, col: 7, channel: 0 },   // and the gate it opens
+            { row: 2, col: 4, channel: 1 },   // the switch at the dead end
             { row: 4, col: 4, channel: 1 }    // and the shortcut it opens
         ]
     },

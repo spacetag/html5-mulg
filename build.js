@@ -14,15 +14,17 @@ module.exports = function makeCollisionCheckingFunction(level, blocks) {
         return blocks.indexOf(tileNumber) !== -1
     }
 
-    // `direction` is which way the ball is heading into the square, for tiles
-    // like the one-way arrows that only block from one side. A list of tile
-    // numbers ignores it.
-    return function checkForCollision(row, col, direction) {
+    // `entering` is which way the ball is heading into the square, as a pair of
+    // -1/0/1 components, for tiles like the one-way arrows that only block from
+    // one side. It is null when the ball is already overlapping the square rather
+    // than rolling into it, which mulg.c distinguishes and some tiles care about.
+    // A list of tile numbers ignores it.
+    return function checkForCollision(row, col, entering) {
         // http://stackoverflow.com/questions/4228356/integer-division-in-javascript
         row = Math.floor((row + levelHeight) % levelHeight)
         col = Math.floor((col + levelWidth)  % levelWidth)
 
-        return blocksTile(level[row][col], direction)
+        return blocksTile(level[row][col], entering)
     }
 }
 
@@ -43,12 +45,70 @@ var BALL_SPEED_THRESH = 0.1
 // the frictionless surfaces without changing how floor has always felt.
 var BALL_MAX_SPEED = 99
 
+// mulg.c works in 16ths of a tile, and every rule below is written in those
+// units, so this is one of them in the sizes this port draws at.
+var SUB_TILE = 16
+var SUB_STEP = TILE_SIZE / SUB_TILE
+// mulg.c's DUSCH: a hit on a wall costs the marble 30% of the speed it hit at.
+var BOUNCE_KEEP = 0.7
+
 var REGISTER_KEYPRESSES_EVERY_MS = 50
-// How long a gate rests on each frame as it slides open or shut.
-var GATE_FRAME_MS = 55
+// How long a gate rests on each frame as it slides open or shut. mulg.c steps a
+// door on every fourth game frame, and a game frame there is what this port calls
+// REGISTER_KEYPRESSES_EVERY_MS, so a gate is a little over half a second between
+// fully open and fully shut. It used to be a quarter of that, which left no time
+// at all to get through one.
+var GATE_FRAME_MS = 4 * REGISTER_KEYPRESSES_EVERY_MS
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
+
+// Which of the four diagonally neighbouring squares the marble is far enough
+// into to touch, for each of the 16x16 positions it can sit at inside a square.
+// This is mulg.c's `hole` table (hole.c) as it stands, indexed [iy][ix]: the top
+// five bits are what the collision check reads, and the bottom three are the
+// hole and hump acceleration this port does not have yet, left in so they are
+// here when it does. Rolling the marble's round shape into a table is how the
+// original gets a circle's worth of accuracy out of integer arithmetic.
+var CORNER_UP_LEFT = 0x80
+var CORNER_DOWN_LEFT = 0x40
+var CORNER_DOWN_RIGHT = 0x20
+var CORNER_UP_RIGHT = 0x10
+// Set on the positions where the marble is only just touching, so a tile that
+// cares which way it was entered is told.
+var CORNER_ENTERING = 0x08
+var CORNERS = 0xf0 | CORNER_ENTERING
+
+var CORNER_MASK = [
+    [0x80,0x80,0x80,0x80,0x88,0x00,0x00,0x00,0x00,0x00,0x18,0x10,0x10,0x10,0x10,0x10],
+    [0x80,0x80,0x80,0x88,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x10,0x10,0x10,0x10],
+    [0x80,0x80,0x80,0x88,0x00,0x00,0x04,0x04,0x04,0x00,0x00,0x18,0x10,0x10,0x10,0x10],
+    [0x80,0x88,0x88,0x00,0x03,0x03,0x03,0x03,0x03,0x03,0x03,0x00,0x18,0x18,0x10,0x10],
+    [0x88,0x00,0x00,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x00,0x00,0x18,0x18],
+    [0x00,0x00,0x00,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x00],
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+    [0x00,0x00,0x00,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x00],
+    [0x48,0x00,0x00,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x00,0x00,0x28,0x28],
+    [0x40,0x48,0x48,0x00,0x03,0x03,0x03,0x03,0x03,0x03,0x03,0x00,0x28,0x28,0x20,0x20],
+    [0x40,0x40,0x40,0x48,0x00,0x00,0x04,0x04,0x04,0x00,0x00,0x28,0x20,0x20,0x20,0x20],
+    [0x40,0x40,0x40,0x48,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x28,0x20,0x20,0x20,0x20],
+    [0x40,0x40,0x40,0x40,0x48,0x00,0x00,0x00,0x00,0x00,0x28,0x20,0x20,0x20,0x20,0x20],
+    [0x40,0x40,0x40,0x40,0x48,0x00,0x00,0x00,0x00,0x00,0x28,0x20,0x20,0x20,0x20,0x20]
+]
+
+// The ways the marble can be rolling into a square, as mulg.c's eight entering
+// directions. Null stands for its ninth case: the marble is already overlapping
+// the square without having rolled into it.
+var HEADING_LEFT = { x: -1, y: 0 }
+var HEADING_RIGHT = { x: 1, y: 0 }
+var HEADING_UP = { x: 0, y: -1 }
+var HEADING_DOWN = { x: 0, y: 1 }
+var HEADING_UP_LEFT = { x: -1, y: -1 }
+var HEADING_UP_RIGHT = { x: 1, y: -1 }
+var HEADING_DOWN_LEFT = { x: -1, y: 1 }
+var HEADING_DOWN_RIGHT = { x: 1, y: 1 }
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -89,6 +149,11 @@ module.exports = function createGame(levels, options) {
     var activatedCells = []
     var switchCells = []
     var standingOn = null
+    // The solid squares the ball was up against last tick and this one, so a
+    // switch is thrown as the ball arrives at it rather than over and over while
+    // it stays leaning on it.
+    var leaningOn = {}
+    var leaningOnNow = {}
     var notes = {}
     // The secret pass-through key. Undocumented on purpose, so it is off until
     // something asks for it.
@@ -130,13 +195,31 @@ module.exports = function createGame(levels, options) {
     }
 
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
-    // ball is trying to enter against.
-    function blocks(tileNumber, direction) {
+    // ball is trying to enter against. `entering` is the way the ball is rolling
+    // in, or null when it is already overlapping the square, which is the case
+    // mulg.c's check_tile calls dir 0.
+    function blocks(tileNumber, entering) {
         if (ghost) return false
+
+        // The ball is inside a gate it never rolled into, so the gate came down on
+        // top of it. mulg.c ends the level right here.
+        if (tiles.isClosedGate(tileNumber)) {
+            if (!entering) crushed()
+            return true
+        }
+
         if (tiles.isWall(tileNumber)) return true
 
         var oneWay = tiles.oneWayDirection(tileNumber)
-        return oneWay !== null && oneWay === OPPOSITE[direction]
+
+        // A one-way only turns the ball away as it rolls in, and only when it is
+        // rolling against the arrow. Once the ball is on it, it is free to leave.
+        if (oneWay === null || !entering) return false
+
+        if (oneWay === 'left') return entering.x > 0
+        if (oneWay === 'right') return entering.x < 0
+        if (oneWay === 'up') return entering.y > 0
+        return entering.y < 0
     }
 
     /***** Channels *****/
@@ -280,6 +363,8 @@ module.exports = function createGame(levels, options) {
         readNotes(game.level)
         wireUp(game.level)
         standingOn = null
+        leaningOn = {}
+        leaningOnNow = {}
         game.notes = []
         game.lastNote = null
 
@@ -320,9 +405,20 @@ module.exports = function createGame(levels, options) {
 
     /***** Movement *****/
 
+    // The ball has come up against a solid square. mulg.c throws a switch as the
+    // ball arrives at it, and the ball looks at what it is touching after every
+    // sixteenth of a square it moves, so without this a single shove would ask a
+    // switch a dozen times over and a toggle asked twice is a toggle that did
+    // nothing. It is thrown on arrival, and not again until the ball has come off
+    // it.
     function bumped(row, col) {
         var at = wrapped(row, col)
-        throwSwitchAt(at.row, at.col)
+        var key = at.row + ',' + at.col
+        var arriving = !leaningOn[key] && !leaningOnNow[key]
+
+        leaningOnNow[key] = true
+
+        if (arriving) throwSwitchAt(at.row, at.col)
     }
 
     function clamp(speed) {
@@ -331,10 +427,157 @@ module.exports = function createGame(levels, options) {
         return speed
     }
 
+    // Is the ball touching something solid where it stands? This is mulg.c's
+    // check_marble: the ball is a circle a little smaller than its square, so it
+    // reaches into the next square along once it is more than nine sixteenths of
+    // the way over, and into a diagonal neighbour on the positions the corner
+    // table marks. A hit costs the ball speed on the axis it hit on, the way
+    // DUSCH does in the original, so bouncing around a room winds down.
+    function touchingSomething() {
+        var ball = game.ball
+        var row = ballRow()
+        var col = ballCol()
+        var ix = Math.floor(ballIX())
+        var iy = Math.floor(ballIY())
+
+        // ... horizontally ...
+        if (ix > 9 && blocking(row, col + 1, ix === 10 && ball.sx > 0 ? HEADING_RIGHT : null)) {
+            ball.sx = ball.sx * BOUNCE_KEEP
+            return true
+        }
+
+        if (ix < 5 && blocking(row, col - 1, ix === 4 && ball.sx < 0 ? HEADING_LEFT : null)) {
+            ball.sx = ball.sx * BOUNCE_KEEP
+            return true
+        }
+
+        // ... vertically ...
+        if (iy > 9 && blocking(row + 1, col, iy === 10 && ball.sy > 0 ? HEADING_DOWN : null)) {
+            ball.sy = ball.sy * BOUNCE_KEEP
+            return true
+        }
+
+        if (iy < 5 && blocking(row - 1, col, iy === 4 && ball.sy < 0 ? HEADING_UP : null)) {
+            ball.sy = ball.sy * BOUNCE_KEEP
+            return true
+        }
+
+        // ... and diagonally, off the corner of a wall.
+        var corners = CORNER_MASK[iy][ix] & CORNERS
+        if (!corners) return false
+
+        var arriving = (corners & CORNER_ENTERING) !== 0
+
+        if (((corners & CORNER_UP_LEFT) && blocking(row - 1, col - 1, arriving ? HEADING_UP_LEFT : null)) ||
+            ((corners & CORNER_DOWN_LEFT) && blocking(row + 1, col - 1, arriving ? HEADING_DOWN_LEFT : null)) ||
+            ((corners & CORNER_UP_RIGHT) && blocking(row - 1, col + 1, arriving ? HEADING_UP_RIGHT : null)) ||
+            ((corners & CORNER_DOWN_RIGHT) && blocking(row + 1, col + 1, arriving ? HEADING_DOWN_RIGHT : null))) {
+            ball.sx = ball.sx * BOUNCE_KEEP
+            ball.sy = ball.sy * BOUNCE_KEEP
+            return true
+        }
+
+        return false
+    }
+
+    // Asking whether a square is solid is also how the ball bumps a switch on it,
+    // which is what mulg.c's check_tile does in the same breath.
+    function blocking(row, col, entering) {
+        if (!checkForCollision(row, col, entering)) return false
+
+        bumped(row, col)
+        return true
+    }
+
+    function sign(value) {
+        if (value > 0) return 1
+        if (value < 0) return -1
+        return 0
+    }
+
+    function shiftX(by) {
+        game.ball.x = wrapCoord(game.ball.x + by, OFFSET_X, game.grid[0].length * TILE_SIZE)
+    }
+
+    function shiftY(by) {
+        game.ball.y = wrapCoord(game.ball.y + by, OFFSET_Y, game.grid.length * TILE_SIZE)
+    }
+
+    // mulg.c never moves the marble far without looking. It walks the travel a
+    // sixteenth of a square at a time along whichever axis is the faster, looks
+    // after each step, and takes a step back the moment the ball has ended up
+    // inside something. That is the whole difference between a ball that turns
+    // away the instant it touches a wall and one that jumps a tile per frame and
+    // sails straight through: it cannot outrun a check that happens every step.
+    function moveBall(dx, dy) {
+        var ball = game.ball
+        var goneX = 0
+        var goneY = 0
+        var stepX, stepY, steps
+
+        if (Math.abs(dx) >= SUB_STEP || Math.abs(dy) >= SUB_STEP) {
+            if (Math.abs(dx) >= Math.abs(dy)) {
+                // Step along x, and let y come along in proportion.
+                stepY = SUB_STEP * dy / Math.abs(dx)
+                stepX = dx > 0 ? SUB_STEP : -SUB_STEP
+                steps = Math.floor(Math.abs(dx) / SUB_STEP)
+            } else {
+                stepX = SUB_STEP * dx / Math.abs(dy)
+                stepY = dy > 0 ? SUB_STEP : -SUB_STEP
+                steps = Math.floor(Math.abs(dy) / SUB_STEP)
+            }
+
+            for (; steps > 0; steps--) {
+                goneY += Math.abs(stepY)
+                shiftY(stepY)
+
+                if (touchingSomething()) {
+                    stepY = -stepY
+                    ball.sy = -ball.sy
+                    shiftY(2 * stepY)
+                }
+
+                goneX += Math.abs(stepX)
+                shiftX(stepX)
+
+                if (touchingSomething()) {
+                    stepX = -stepX
+                    ball.sx = -ball.sx
+                    shiftX(2 * stepX)
+                }
+
+                // A gate can come down on the ball part-way through a step.
+                if (game.status !== PLAYING) return
+            }
+        }
+
+        // Then whatever is left over, which is less than a step's worth. The sign
+        // is the direction the ball is travelling by now, which a bounce above may
+        // have turned around.
+        if (goneX < Math.abs(dx)) {
+            stepX = (Math.abs(dx) - goneX) * sign(ball.sx)
+            shiftX(stepX)
+
+            if (touchingSomething()) {
+                ball.sx = -ball.sx
+                shiftX(-2 * stepX)
+            }
+        }
+
+        if (goneY < Math.abs(dy) && game.status === PLAYING) {
+            stepY = (Math.abs(dy) - goneY) * sign(ball.sy)
+            shiftY(stepY)
+
+            if (touchingSomething()) {
+                ball.sy = -ball.sy
+                shiftY(-2 * stepY)
+            }
+        }
+    }
+
     function updateBallPos(updateMomentum) {
         var ball = game.ball
-        var under = ballSquare().tile
-        var surface = tiles.surface(under)
+        var surface = tiles.surface(ballSquare().tile)
 
         if (updateMomentum) {
             var extrax = ((game.input.right ? 1 : 0) - (game.input.left ? 1 : 0)) * surface.control
@@ -343,38 +586,17 @@ module.exports = function createGame(levels, options) {
             ball.sy = clamp((ball.sy + extray) * (extray ? surface.decayOn : surface.decayOff))
         }
 
-        if (ball.sx > 0 && ballIX() > 9 && checkForCollision(ballRow(), ballCol() + 1, 'right')) {
-            bumped(ballRow(), ballCol() + 1)
-            ball.sx = -ball.sx
-        } else if (ball.sx < 0 && ballIX() < 5 && checkForCollision(ballRow(), ballCol() - 1, 'left')) {
-            bumped(ballRow(), ballCol() - 1)
-            ball.sx = -ball.sx
-        }
-
-        if (ball.sy > 0 && ballIY() > 9 && checkForCollision(ballRow() + 1, ballCol(), 'down')) {
-            bumped(ballRow() + 1, ballCol())
-            ball.sy = -ball.sy
-        } else if (ball.sy < 0 && ballIY() < 5 && checkForCollision(ballRow() - 1, ballCol(), 'up')) {
-            bumped(ballRow() - 1, ballCol())
-            ball.sy = -ball.sy
-        }
-
-        // A one-way arrow will not let the ball turn back through it.
-        var oneWay = tiles.oneWayDirection(under)
-
-        if (oneWay) {
-            if (oneWay === 'left' && ball.sx > 0) ball.sx = 0
-            if (oneWay === 'right' && ball.sx < 0) ball.sx = 0
-            if (oneWay === 'up' && ball.sy > 0) ball.sy = 0
-            if (oneWay === 'down' && ball.sy < 0) ball.sy = 0
-        }
+        // A one-way arrow turns the ball away as it rolls in, which `blocks` above
+        // does. The ball standing on one used to have the speed it was pushing
+        // against taken off it as well, and mulg.c does no such thing: it leaves
+        // the ball free to shuffle about on the arrow, which is what it needs to
+        // do to line itself up with the gap it is heading for.
 
         // http://www.w3schools.com/jsref/jsref_abs.asp
         if (Math.abs(ball.sx) < BALL_SPEED_THRESH) ball.sx = 0
         if (Math.abs(ball.sy) < BALL_SPEED_THRESH) ball.sy = 0
 
-        ball.x = wrapCoord(ball.x + ball.sx / FPS_MULTIPLIER, OFFSET_X, game.grid[0].length * TILE_SIZE)
-        ball.y = wrapCoord(ball.y + ball.sy / FPS_MULTIPLIER, OFFSET_Y, game.grid.length * TILE_SIZE)
+        moveBall(ball.sx / FPS_MULTIPLIER, ball.sy / FPS_MULTIPLIER)
     }
 
     /***** What the ball is standing on *****/
@@ -384,17 +606,24 @@ module.exports = function createGame(levels, options) {
         game.ball.sy = 0
     }
 
-    function die() {
+    function die(what) {
         game.lives = game.lives - 1
         stop()
 
         if (game.lives > 0) {
             game.status = DEAD
-            game.message = 'Ouch. Press R to try again, ' + game.lives + ' left.'
+            game.message = (what || 'Ouch.') + ' Press R to try again, ' + game.lives + ' left.'
         } else {
             game.status = GAME_OVER
-            game.message = 'Game over. Press R to start again.'
+            game.message = (what || 'Ouch.') + ' Game over, press R to start again.'
         }
+    }
+
+    // A gate came down on the ball. It costs a life like any other way of dying,
+    // and it can happen in the middle of a step, so it only counts once.
+    function crushed() {
+        if (game.status !== PLAYING) return
+        die('Squashed by a gate.')
     }
 
     function winLevel() {
@@ -435,6 +664,9 @@ module.exports = function createGame(levels, options) {
             game.score = game.score + tiles.coinValue(here.tile)
             game.grid[here.row][here.col] = tiles.TILE.FLOOR
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
+        } else if (tiles.isClosedGate(here.tile)) {
+            // mulg.c: "standing in closing door -> end of game".
+            crushed()
         } else if (tiles.isDeadly(here.tile)) {
             die()
         } else if (tiles.isGoal(here.tile)) {
@@ -459,7 +691,11 @@ module.exports = function createGame(levels, options) {
         }
 
         advanceGates(elapsedMsSinceLastTick)
+
+        leaningOnNow = {}
         updateBallPos(updateMomentum)
+        leaningOn = leaningOnNow
+
         checkWhatBallIsOn()
     }
 
@@ -845,19 +1081,25 @@ module.exports = [
         start: { row: 1, col: 1 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
-            [ W, F, F, F, F, F, B, N, C, W ],
-            [ W, F, W, W, W, W, W, W, F, W ],
-            [ W, C, F, F, B, W, F, F, F, W ],
+            [ W, F, F, F, F, F, F, N, C, W ],
+            [ W, F, W, W, S, W, S, W, F, W ],
+            [ W, C, F, F, F, W, F, F, F, W ],
             [ W, W, W, W, H, W, F, W, W, W ],
             [ W, F, F, F, F, F, F, W, V, W ],
             [ W, W, F, W, W, W, W, W, F, W ],
             [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ],
+        // Both gates used to be held open by a floor plate in the square next to
+        // them, which a gate that kills makes deadly: rolling off the plate is
+        // what starts the gate closing, and the square it closes on is the one the
+        // ball has just rolled into. These are switches set into the wall instead,
+        // so a gate stays open once it is opened, and each of them can be reached
+        // from either side of its gate.
         wiring: [
-            { row: 1, col: 6, channel: 0 },   // the plate in the top corridor
-            { row: 1, col: 7, channel: 0 },   // and the gate it holds open
-            { row: 3, col: 4, channel: 1 },   // the plate at the dead end
+            { row: 2, col: 6, channel: 0 },   // the switch in the top corridor's floor
+            { row: 1, col: 7, channel: 0 },   // and the gate it opens
+            { row: 2, col: 4, channel: 1 },   // the switch at the dead end
             { row: 4, col: 4, channel: 1 }    // and the shortcut it opens
         ]
     },
@@ -2107,6 +2349,20 @@ function isLetter(tileNumber) {
     return tileInfo(tileNumber).kind === LETTER
 }
 
+// A gate in any state but fully open: shut, or part-way through sliding. mulg.c
+// treats all of those as solid, and kills the marble that turns out to be inside
+// one, which is how a gate closing on the ball costs a life.
+function isClosedGate(tileNumber) {
+    for (var i = 0; i < FRAME_SEQUENCES.length; i++) {
+        var frames = FRAME_SEQUENCES[i]
+        var frame = frames.indexOf(tileNumber)
+
+        if (frame !== -1) return frame < frames.length - 1
+    }
+
+    return false
+}
+
 // The other form of a tile that can be switched, or null if it has none.
 function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
@@ -2144,6 +2400,7 @@ module.exports = {
     activatedPartner: activatedPartner,
     switchForms: switchForms,
     frameSequence: frameSequence,
+    isClosedGate: isClosedGate,
     isLetter: isLetter,
     LETTER: LETTER,
     CHANNELS: 32

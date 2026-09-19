@@ -171,6 +171,20 @@ function isLetter(tileNumber) {
     return tileInfo(tileNumber).kind === LETTER
 }
 
+// A gate in any state but fully open: shut, or part-way through sliding. mulg.c
+// treats all of those as solid, and kills the marble that turns out to be inside
+// one, which is how a gate closing on the ball costs a life.
+function isClosedGate(tileNumber) {
+    for (var i = 0; i < FRAME_SEQUENCES.length; i++) {
+        var frames = FRAME_SEQUENCES[i]
+        var frame = frames.indexOf(tileNumber)
+
+        if (frame !== -1) return frame < frames.length - 1
+    }
+
+    return false
+}
+
 // The other form of a tile that can be switched, or null if it has none.
 function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
@@ -208,6 +222,7 @@ module.exports = {
     activatedPartner: activatedPartner,
     switchForms: switchForms,
     frameSequence: frameSequence,
+    isClosedGate: isClosedGate,
     isLetter: isLetter,
     LETTER: LETTER,
     CHANNELS: 32

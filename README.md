@@ -31,7 +31,7 @@ tiles actually is.
 #### Interaction
 - [ ] Let ball bounce off one kind of wall object
   - [x] Let ball bounce off wall sides
-  - [ ] Let ball bounce off wall corners
+  - [x] Let ball bounce off wall corners
 - [ ] Let ball bounce off all kinds of wall objects
 - [ ] Let ball trip memory game wall pieces
 

@@ -31,7 +31,7 @@ Rows marked **done** have been implemented in this port.
 | A marble with momentum | Velocity with per-surface decay and a stop threshold | `game.js` |
 | Arrow-key tilt control | Multi-key aware, sampled every 50 ms to mimic the Palm's input rate | `index.js`, `game.js` |
 | 60 fps loop scaled off the original's 20 fps | `frame-loop` at `20 × FPS_MULTIPLIER` | `index.js` |
-| Wall collision, edge bounce | Bounces off the flat sides of any blocking tile | `collision-checking.js` |
+| Wall collision, sides and corners | Movement is stepped a sixteenth of a square at a time and checked after each step, off the sides and off the corners, and a hit costs the ball 30% of its speed | `game.js`, `collision-checking.js` |
 | Fifteen levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
 | The exit (Target cross, tile 5) | Rolling onto it finishes the level | `game.js`, `tiles.js` |
 | Death and three lives | Empty pit (3), death cube (42), spent descending floor (87) | `game.js` |
@@ -40,7 +40,8 @@ Rows marked **done** have been implemented in this port.
 | One-way tiles | 44–47; the ball cannot come back through | `game.js` |
 | A clock, and level progression | Per-level timer, R moves you on | `game.js`, `index.js` |
 | Switches and channels | 32 channels wiring switches to gates and pits | `game.js`, `levels.js` |
-| Gates that open and close | 11/14 and 15/18, on a channel | `tiles.js` |
+| Gates that open and close | 11/14 and 15/18, on a channel, sliding through their in-between frames | `tiles.js` |
+| A gate closing on the ball | Costs a life, like any other way of dying | `game.js` |
 | Pits that fill in, floors that drop away | 3/4, on a channel | `tiles.js` |
 | Floor switches | 88/89, held down only while the ball is on them | `game.js` |
 | Level selector | Jumps to any of the levels, keeping the score banked so far | `index.js`, `game.js` |
@@ -78,9 +79,9 @@ Ordered roughly by how much each one blocks the rest.
 
 | # | Element | Tiles | Status |
 | --- | --- | --- | --- |
-| 13 | **Corner collision.** Bouncing off a wall *corner*, not just its flat side | — | Missing; the known gap in the movement code |
+| 13 | **Corner collision.** Bouncing off a wall *corner*, not just its flat side | — | **done** — the original's own 16x16 table of which diagonal neighbours the ball's round shape reaches into |
 | 14 | **Switches**, low and high, that activate a channel when touched | 009, 010 | **done** — bumping one throws its channel and the tile shows which way it is set |
-| 15 | **Gates** that open and close on a channel | 011–018 | **done** for the closed/open pairs (011/014, 015/018); the frames between them (012, 013, 016, 017) are not animated |
+| 15 | **Gates** that open and close on a channel | 011–018 | **done**, including the frames between (012, 013, 016, 017), which a gate rests on for four game frames each the way the original's does, and which kill the ball caught in them |
 | 16 | **Swings** — through one way, then back | 019–022 | Missing |
 | 17 | **Ventilator** — sucks the ball in and you lose, when switched on | 023–026 | Missing; it is channel-driven, so it is ready to be added now |
 | 18 | **Hole** — pulls the ball towards its centre | 027 | Missing |
@@ -120,6 +121,7 @@ Ordered roughly by how much each one blocks the rest.
 | 42 | The test suite threw on its first assertion | **done** — the collision list defaults to the green block, and the suite now covers the tile registry, the level data and the game rules. `tape` was pinned forward from 4.3.0, which dropped tests at random on modern Node |
 | 43 | The page relied on quirks mode to parse unitless `left`/`top` | **done** — the page has a doctype and positions carry `px` |
 | 44 | `build.js` is a committed bundle that has to be rebuilt by hand after every source change | Still true; `npm run build` before committing |
+| 45 | The floor button (88/89) is held down only while the ball sits on it | Still true, and not what the original does. In `mulg.c` a `BUT0` is a *toggle*: rolling onto it throws its channel and the channel stays thrown, which is why the original can have a door you open and then roll through. Held-down plates cannot do that now that a closing gate kills, so a plate can no longer usefully open anything the ball has to cross |
 
 ---
 
@@ -129,14 +131,17 @@ Ordered roughly by how much each one blocks the rest.
    magnets. They are all the same shape of change to the movement code, and they
    are what makes the original's levels play the way they do. *(items 18, 19, 25,
    27, 28, 38)*
-2. **The rest of the channel-driven tiles** — the ventilator, flip tiles (which
+2. **The floor button as a toggle** — item 45. It is a two-line change to
+   `game.js` and it is what lets a level have a door you open and then roll
+   through, which is how the original's own levels are built.
+3. **The rest of the channel-driven tiles** — the ventilator, flip tiles (which
    need two channels per square), locks and keys, and the coin slot, now that
    channels exist. *(items 17, 21, 31, 33)*
-3. **Things that move or change** — boxes, descending floors, walkers, beetles,
+4. **Things that move or change** — boxes, descending floors, walkers, beetles,
    bombs. *(items 22, 23, 24, 26, 29, 35, 37)*
-4. **Content** — multi-screen levels, then the `.pdb` / `.lev` readers so the
+5. **Content** — multi-screen levels, then the `.pdb` / `.lev` readers so the
    original level sets can be played, then a level selector. *(items 7–10)*
-5. **Reach** — touch control and a responsive layout, so it plays on a phone the
+6. **Reach** — touch control and a responsive layout, so it plays on a phone the
    way the original played on a Palm. *(items 39–41)*
-6. **Polish** — high scores, sound, menus, the rarer elements. *(items 1–5, 16,
+7. **Polish** — high scores, sound, menus, the rarer elements. *(items 1–5, 16,
    17, 20, 32, 34, 36)*
