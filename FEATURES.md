@@ -32,7 +32,7 @@ Rows marked **done** have been implemented in this port.
 | Arrow-key tilt control | Multi-key aware, sampled every 50 ms to mimic the Palm's input rate | `index.js`, `game.js` |
 | 60 fps loop scaled off the original's 20 fps | `frame-loop` at `20 × FPS_MULTIPLIER` | `index.js` |
 | Wall collision, edge bounce | Bounces off the flat sides of any blocking tile | `collision-checking.js` |
-| Five levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
+| Fifteen levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
 | The exit (Target cross, tile 5) | Rolling onto it finishes the level | `game.js`, `tiles.js` |
 | Death and three lives | Empty pit (3), death cube (42), spent descending floor (87) | `game.js` |
 | Coins and a score | 1 and 5 cent coins (98, 100) | `game.js` |
@@ -63,7 +63,7 @@ Ordered roughly by how much each one blocks the rest.
 
 | # | Feature in the original | Status here |
 | --- | --- | --- |
-| 7 | **Hundreds of levels**, shipped as level sets | Five hand-made levels |
+| 7 | **Hundreds of levels**, shipped as level sets | Fifteen hand-made levels, one screen each, built out of the mechanics the port already has |
 | 8 | **Levels larger than one screen.** MulgEd allows up to 37×33 tiles, so a level scrolls or pages | Single screen only |
 | 9 | **`.pdb` level set reading** (Palm database files) | Not started |
 | 10 | **`.lev` level set reading** | Not started |
