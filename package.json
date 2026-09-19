@@ -6,7 +6,8 @@
   "scripts": {
     "test": "tape tests/*.js",
     "watch": "watchify index.js -d -o build.js",
-    "build": "browserify index.js -o build.js"
+    "build": "browserify index.js -o build.js",
+    "levels": "node tools/convert-levels.js"
   },
   "repository": {
     "type": "git",

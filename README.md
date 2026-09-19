@@ -8,6 +8,11 @@ versus what this port does today, and what is still missing, and
 [docs/original-tiles.md](docs/original-tiles.md) for what each of the 147 original
 tiles actually is.
 
+The levels the original shipped with are in [levels/original](levels/original),
+straight from the game's own `.pdb` databases; `npm run levels` converts them
+into `levels-original.js`. Seven of the 48 need nothing this port has not built
+yet, and those are in the level selector alongside the hand-made ones.
+
 # Todos
 #### Level display
 - [x] Decide if you want to use Canvas or CSS
@@ -20,7 +25,7 @@ tiles actually is.
 - [ ] Get actual level file read in and displayed
   - [x] Create JS Object/JS Array/JSON String level format
   - [x] Be able to read in JS Object/JS Array/JSON String levelsets
-  - [ ] Be able to read in .pdb format levelsets
+  - [x] Be able to read in .pdb format levelsets
   - [ ] Be able to read in .lev format levelsets
 
 #### Ball
@@ -39,7 +44,7 @@ tiles actually is.
 - [ ] Make timer work (with appropriately scaled time from original Mulg running on Palm III emulator)
   - [x] Show a per-level clock
 - [ ] Create highscore table
-- [ ] Create level selector
+- [x] Create level selector
 - [ ] Create game pack selector
 
 #### Mobile
