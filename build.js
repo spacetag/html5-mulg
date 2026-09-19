@@ -772,19 +772,19 @@ module.exports = [
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
             [ W, F, I, I, I, I, I, M, C, W ],
+            [ W, W, W, W, W, W, W, W, F, W ],
             [ W, W, W, V, F, S, W, W, F, W ],
             [ W, W, W, W, B, W, W, W, F, W ],
             [ W, W, W, W, H, W, W, W, F, W ],
-            [ W, W, W, W, B, W, W, W, F, W ],
-            [ W, W, W, W, F, W, W, W, M, W ],
+            [ W, W, W, W, B, W, W, W, M, W ],
             [ W, G, N, F, F, C, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ],
         wiring: [
-            { row: 5, col: 4, channel: 0 },   // the plate at the foot of the shaft
-            { row: 4, col: 4, channel: 0 },   // the gate it holds open
-            { row: 3, col: 4, channel: 0 },   // and the plate that lets you back out
-            { row: 2, col: 5, channel: 1 },   // the switch at the top of the shaft
+            { row: 6, col: 4, channel: 0 },   // the plate at the foot of the shaft
+            { row: 5, col: 4, channel: 0 },   // the gate it holds open
+            { row: 4, col: 4, channel: 0 },   // and the plate that lets you back out
+            { row: 3, col: 5, channel: 1 },   // the switch at the top of the shaft
             { row: 7, col: 2, channel: 1 }    // opens the last gate, by the exit
         ]
     },
@@ -817,7 +817,7 @@ module.exports = [
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
             [ W, F, M, O, O, O, M, F, C, W ],
-            [ W, F, W, W, W, W, W, W, D, W ],
+            [ W, W, W, W, W, W, W, W, D, W ],
             [ W, F, F, C, X, F, F, F, F, W ],
             [ W, F, F, X, C, F, X, F, F, W ],
             [ W, V, I, I, I, I, I, I, F, W ],
