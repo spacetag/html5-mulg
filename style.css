@@ -56,6 +56,34 @@ body {
     image-rendering: pixelated;
 }
 
+#controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 8px;
+    font-size: 13px;
+}
+
+#controls select,
+#controls button {
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 3px 6px;
+}
+
+#controls select {
+    flex: 1;
+    min-width: 0;
+}
+
+#controls button {
+    cursor: pointer;
+}
+
 #message {
     min-height: 1.2em;
     margin: 10px 0 0;
@@ -102,6 +130,10 @@ body {
 
 #notes_list li {
     margin-bottom: 4px;
+}
+
+#ball.ghost {
+    opacity: 0.45;
 }
 
 #help {

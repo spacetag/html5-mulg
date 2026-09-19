@@ -689,3 +689,138 @@ test('a letter is not a wall and not deadly', function(t) {
 	t.ok(tiles.isLetter(LETTER))
 	t.end()
 })
+
+/***** Jumping to a level *****/
+
+test('goToLevel jumps straight to a level and starts it playing', function(t) {
+	var game = createGame([
+		corridor('one', [ F, F, G ]),
+		corridor('two', [ F, F, G ]),
+		corridor('three', [ F, F, G ])
+	])
+
+	roll(game, 'right', 100)
+	game.goToLevel(2)
+
+	t.equal(game.levelIndex, 2)
+	t.equal(game.level.name, 'three')
+	t.equal(game.status, createGame.PLAYING)
+	t.equal(game.elapsedMs, 0, 'the clock starts again')
+	t.equal(game.ballSquare().row, 1, 'and the ball is back at the start')
+	t.equal(game.ballSquare().col, 1)
+	t.end()
+})
+
+test('goToLevel keeps the score banked so far and the lives left', function(t) {
+	var game = createGame([
+		corridor('one', [ C, F, G ]),
+		corridor('two', [ F, F, G ]),
+		corridor('three', [ F, F, G ])
+	])
+
+	roll(game, 'right', 400)
+	t.equal(game.status, createGame.LEVEL_WON, 'the first level was won with its coin')
+	t.equal(game.score, 1)
+
+	game.advance()
+	roll(game, 'right', 300)
+	t.equal(game.status, createGame.LEVEL_WON, 'and so was the second')
+
+	game.advance()
+	game.lives = 2
+	game.goToLevel(0)
+
+	t.equal(game.score, 1, 'the coin banked on level one is still scored')
+	t.equal(game.lives, 2, 'and the lives are untouched')
+	t.end()
+})
+
+test('goToLevel hands back lives when the game had run out of them', function(t) {
+	var game = createGame([ corridor('one', [ F, X, G ]), corridor('two', [ F, F, G ]) ])
+
+	// The third death ends the game, and pressing on after that would start a
+	// fresh one, so the run of deaths stops there.
+	roll(game, 'right', 300)
+	game.advance()
+	roll(game, 'right', 300)
+	game.advance()
+	roll(game, 'right', 300)
+
+	t.equal(game.status, createGame.GAME_OVER)
+	t.equal(game.lives, 0, 'three deaths ended the game')
+
+	game.goToLevel(1)
+
+	t.equal(game.lives, 3, 'so the level picked is playable')
+	t.equal(game.status, createGame.PLAYING)
+	t.end()
+})
+
+test('goToLevel ignores a level that is not there', function(t) {
+	var game = createGame([ corridor('one', [ F, F, G ]) ])
+
+	game.goToLevel(4)
+	game.goToLevel(-1)
+
+	t.equal(game.levelIndex, 0)
+	t.equal(game.level.name, 'one')
+	t.end()
+})
+
+/***** Passing through walls *****/
+
+test('a wall stops the ball, until it is told not to', function(t) {
+	var blocked = createGame([ corridor('one', [ F, W, F, F ]) ])
+
+	rollUntil(blocked, 'right', function() { return blocked.ballSquare().col >= 3 }, 600)
+
+	t.ok(blocked.ballSquare().col <= 1, 'the wall is in the way')
+
+	var through = createGame([ corridor('one', [ F, W, F, F ]) ])
+
+	through.setGhost(true)
+	t.ok(through.ghost, 'the game says it is on')
+
+	rollUntil(through, 'right', function() { return through.ballSquare().col >= 3 }, 600)
+
+	t.ok(through.ballSquare().col >= 3, 'with it on, the ball rolls through the wall')
+	t.equal(through.grid[1][2], W, 'and the wall is still standing')
+	t.end()
+})
+
+test('passing through walls can be turned off again', function(t) {
+	var game = createGame([ corridor('one', [ F, W, F, F ]) ])
+
+	t.equal(game.toggleGhost(), true, 'toggling turns it on')
+	t.equal(game.toggleGhost(), false, 'and toggling again turns it off')
+	t.equal(game.ghost, false)
+
+	rollUntil(game, 'right', function() { return game.ballSquare().col >= 3 }, 600)
+
+	t.ok(game.ballSquare().col <= 1, 'so the wall blocks the ball once more')
+	t.end()
+})
+
+test('walls are all it passes through: a death cube still kills', function(t) {
+	var game = createGame([ corridor('one', [ F, X, F ]) ])
+
+	game.setGhost(true)
+	roll(game, 'right', 300)
+
+	t.equal(game.status, createGame.DEAD)
+	t.equal(game.lives, 2)
+	t.end()
+})
+
+test('a ball that rolls off the board comes back on the other side', function(t) {
+	var game = createGame([ corridor('one', [ F, F, F ]) ])
+	var width = 5 * createGame.TILE_SIZE
+
+	game.setGhost(true)
+	rollUntil(game, 'left', function() { return game.ballSquare().col === 4 }, 2000)
+
+	t.equal(game.ballSquare().col, 4, 'rolling off the left edge comes out at the right')
+	t.ok(game.ball.x > 0 && game.ball.x < width, 'and the ball is drawn on the board, at ' + game.ball.x)
+	t.equal(game.ballSquare().row, 1, 'having stayed in its row')
+	t.end()
+})

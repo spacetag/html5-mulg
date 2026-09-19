@@ -43,6 +43,8 @@ Rows marked **done** have been implemented in this port.
 | Gates that open and close | 11/14 and 15/18, on a channel | `tiles.js` |
 | Pits that fill in, floors that drop away | 3/4, on a channel | `tiles.js` |
 | Floor switches | 88/89, held down only while the ball is on them | `game.js` |
+| Level selector | Jumps to any of the levels, keeping the score banked so far | `index.js`, `game.js` |
+| 1x/2x speed button | Runs the whole simulation twice per frame, so the game plays the same, faster | `index.js` |
 
 ## 2. Missing
 

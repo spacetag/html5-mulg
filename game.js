@@ -48,6 +48,7 @@ module.exports = function createGame(levels, options) {
         lives: livesPerGame,
         elapsedMs: 0,
         ball: { x: 0, y: 0, sx: 0, sy: 0 },
+        ghost: false,
         input: { left: false, right: false, up: false, down: false }
     }
 
@@ -60,6 +61,9 @@ module.exports = function createGame(levels, options) {
     var switchCells = []
     var standingOn = null
     var notes = {}
+    // The secret pass-through key. Undocumented on purpose, so it is off until
+    // something asks for it.
+    var ghost = false
     var sinceLastMomentumTick = 0
     // The score as it stood when this level started. Restarting a level puts the
     // coins back, so it has to put the score back too.
@@ -83,6 +87,13 @@ module.exports = function createGame(levels, options) {
         }
     }
 
+    // Nothing can roll off the board in normal play, but passing through walls
+    // can, and the board already wraps for the squares. Keep the marble's own
+    // position on it too, so what is drawn is the square it is really on.
+    function wrapCoord(value, offset, size) {
+        return ((value + offset) % size + size) % size - offset
+    }
+
     function ballSquare() {
         var at = wrapped(ballRow(), ballCol())
         at.tile = game.grid[at.row][at.col]
@@ -92,6 +103,7 @@ module.exports = function createGame(levels, options) {
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
     // ball is trying to enter against.
     function blocks(tileNumber, direction) {
+        if (ghost) return false
         if (tiles.isWall(tileNumber)) return true
 
         var oneWay = tiles.oneWayDirection(tileNumber)
@@ -268,6 +280,15 @@ module.exports = function createGame(levels, options) {
         else loadLevel(game.levelIndex, true)
     }
 
+    // Jump straight to a level, which is what the level selector does. The score
+    // banked so far carries over, and so do the lives, except that a game which
+    // has already run out of them gets a fresh set to play the level with.
+    function goToLevel(index) {
+        if (index < 0 || index >= levels.length) return
+        if (game.lives <= 0) game.lives = livesPerGame
+        loadLevel(index, true)
+    }
+
     /***** Movement *****/
 
     function bumped(row, col) {
@@ -323,8 +344,8 @@ module.exports = function createGame(levels, options) {
         if (Math.abs(ball.sx) < BALL_SPEED_THRESH) ball.sx = 0
         if (Math.abs(ball.sy) < BALL_SPEED_THRESH) ball.sy = 0
 
-        ball.x = ball.x + ball.sx / FPS_MULTIPLIER
-        ball.y = ball.y + ball.sy / FPS_MULTIPLIER
+        ball.x = wrapCoord(ball.x + ball.sx / FPS_MULTIPLIER, OFFSET_X, game.grid[0].length * TILE_SIZE)
+        ball.y = wrapCoord(ball.y + ball.sy / FPS_MULTIPLIER, OFFSET_Y, game.grid.length * TILE_SIZE)
     }
 
     /***** What the ball is standing on *****/
@@ -423,6 +444,16 @@ module.exports = function createGame(levels, options) {
 
     game.tick = tick
     game.advance = advance
+    game.goToLevel = goToLevel
+
+    game.setGhost = function(on) {
+        ghost = !!on
+        game.ghost = ghost
+        return ghost
+    }
+
+    game.toggleGhost = function() { return game.setGhost(!ghost) }
+
     game.startNewGame = startNewGame
     game.consumeTileChanges = consumeTileChanges
     game.ballSquare = ballSquare
