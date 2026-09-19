@@ -740,6 +740,9 @@ var R = tiles.TILE.ONE_WAY_RIGHT
 // A floor square wired to a channel is a trapdoor: it drops away into a pit
 // when the channel comes on, the same way a wired pit fills in.
 var T = tiles.TILE.FLOOR
+// A letter lying on the floor. The ball picks it up like a coin, and the
+// level's notes list says what it says.
+var A = tiles.TILE.LETTER
 
 module.exports = [
     {
@@ -830,7 +833,7 @@ module.exports = [
         start: { row: 1, col: 1 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
-            [ W, F, F, F, F, F, F, F, C, W ],
+            [ W, F, A, F, F, F, F, F, C, W ],
             [ W, F, W, W, W, W, W, W, F, W ],
             [ W, F, F, O, O, O, O, F, F, W ],
             [ W, M, W, O, C, O, O, W, W, W ],
@@ -838,6 +841,9 @@ module.exports = [
             [ W, F, W, W, W, W, W, W, M, W ],
             [ W, C, F, F, F, F, W, G, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        notes: [
+            { row: 1, col: 2, text: 'Oil takes your grip, not your speed.' }
         ]
     },
     {
@@ -845,7 +851,7 @@ module.exports = [
         start: { row: 1, col: 1 },
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
-            [ W, F, F, F, F, F, B, N, C, W ],
+            [ W, F, F, A, F, F, B, N, C, W ],
             [ W, F, W, W, W, W, W, W, F, W ],
             [ W, C, F, F, B, W, F, F, F, W ],
             [ W, W, W, W, H, W, F, W, W, W ],
@@ -853,6 +859,9 @@ module.exports = [
             [ W, W, F, W, W, W, W, W, F, W ],
             [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        notes: [
+            { row: 1, col: 3, text: 'A plate in the floor holds its gate open only while you stand on it.' }
         ],
         wiring: [
             { row: 1, col: 6, channel: 0 },   // the plate in the top corridor
@@ -872,8 +881,11 @@ module.exports = [
             [ W, U, W, W, F, W, W, W, D, W ],
             [ W, U, W, W, C, W, W, W, D, W ],
             [ W, U, W, W, F, W, W, W, D, W ],
-            [ W, V, L, L, L, L, L, C, F, W ],
+            [ W, V, L, L, L, L, L, C, A, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        notes: [
+            { row: 7, col: 8, text: 'The arrows only turn one way. The coin in the far corner costs another lap.' }
         ]
     },
     {
@@ -908,8 +920,11 @@ module.exports = [
             [ W, W, W, F, W, W, W, W, I, W ],
             [ W, S, W, F, W, W, W, W, I, W ],
             [ W, F, W, P, W, C, W, W, I, W ],
-            [ W, F, F, F, I, I, I, I, F, W ],
+            [ W, F, A, F, I, I, I, I, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        notes: [
+            { row: 7, col: 2, text: 'To stop on ice, push the other way.' }
         ],
         wiring: [
             { row: 5, col: 1, channel: 0 },   // the switch in the corner
@@ -923,12 +938,15 @@ module.exports = [
             [ W, W, W, W, W, W, W, W, W, W ],
             [ W, F, F, F, T, F, F, V, W, W ],
             [ W, F, W, W, W, W, W, W, W, W ],
-            [ W, F, F, F, F, F, F, F, F, W ],
+            [ W, F, A, F, F, F, F, F, F, W ],
             [ W, W, W, W, S, W, W, W, F, W ],
             [ W, C, F, F, F, F, F, F, F, W ],
             [ W, P, W, W, W, W, W, W, W, W ],
             [ W, F, F, F, C, F, F, F, G, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        notes: [
+            { row: 3, col: 2, text: 'One switch, two squares. The pit fills in, and the floor behind you drops away.' }
         ],
         wiring: [
             { row: 4, col: 4, channel: 0 },   // one switch
@@ -957,19 +975,22 @@ module.exports = [
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
             [ W, F, I, I, I, I, I, M, C, W ],
+            [ W, W, W, W, W, W, W, W, F, W ],
             [ W, W, W, V, F, S, W, W, F, W ],
             [ W, W, W, W, B, W, W, W, F, W ],
             [ W, W, W, W, H, W, W, W, F, W ],
-            [ W, W, W, W, B, W, W, W, F, W ],
-            [ W, W, W, W, F, W, W, W, M, W ],
-            [ W, G, N, F, F, C, F, F, F, W ],
+            [ W, W, W, W, B, W, W, W, M, W ],
+            [ W, G, N, F, F, C, A, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
         ],
+        notes: [
+            { row: 7, col: 6, text: 'Ride the plate through, then stand on the one inside to open the way back.' }
+        ],
         wiring: [
-            { row: 5, col: 4, channel: 0 },   // the plate at the foot of the shaft
-            { row: 4, col: 4, channel: 0 },   // the gate it holds open
-            { row: 3, col: 4, channel: 0 },   // and the plate that lets you back out
-            { row: 2, col: 5, channel: 1 },   // the switch at the top of the shaft
+            { row: 6, col: 4, channel: 0 },   // the plate at the foot of the shaft
+            { row: 5, col: 4, channel: 0 },   // the gate it holds open
+            { row: 4, col: 4, channel: 0 },   // and the plate that lets you back out
+            { row: 3, col: 5, channel: 1 },   // the switch at the top of the shaft
             { row: 7, col: 2, channel: 1 }    // opens the last gate, by the exit
         ]
     },
@@ -1002,7 +1023,7 @@ module.exports = [
         tiles: [
             [ W, W, W, W, W, W, W, W, W, W ],
             [ W, F, M, O, O, O, M, F, C, W ],
-            [ W, F, W, W, W, W, W, W, D, W ],
+            [ W, W, W, W, W, W, W, W, D, W ],
             [ W, F, F, C, X, F, F, F, F, W ],
             [ W, F, F, X, C, F, X, F, F, W ],
             [ W, V, I, I, I, I, I, I, F, W ],
