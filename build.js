@@ -582,7 +582,7 @@ module.exports = [
             [ W, W, W, F, W, W, W, W, F, W ],
             [ W, V, F, F, F, F, C, W, F, W ],
             [ W, W, W, W, X, W, F, W, F, W ],
-            [ W, C, F, F, F, W, F, F, F, W ],
+            [ W, C, F, F, F, F, F, F, F, W ],
             [ W, F, W, W, F, W, W, W, X, W ],
             [ W, F, F, W, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]

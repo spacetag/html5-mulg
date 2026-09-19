@@ -145,15 +145,17 @@ test('every level can be finished without dying', function(t) {
 	t.end()
 })
 
-test('every coin in a level can be reached', function(t) {
+// A coin behind a death cube is not a risk the player can take: dying restarts
+// the level, so it can never be collected at all.
+test('every coin in a level can be collected without dying', function(t) {
 	forEachLevel(t, function(level, name) {
-		var reachable = reachableFromStart(level)
+		var safe = reachableFromStart(level, { avoidDeadly: true })
 
 		level.tiles.forEach(function(row, rowIndex) {
 			row.forEach(function(tile, colIndex) {
 				if (!tiles.isCoin(tile)) return
-				t.ok(reachable[rowIndex + ',' + colIndex],
-					name + ' coin at ' + rowIndex + ',' + colIndex + ' is reachable')
+				t.ok(safe[rowIndex + ',' + colIndex],
+					name + ' coin at ' + rowIndex + ',' + colIndex + ' can be collected')
 			})
 		})
 	})
