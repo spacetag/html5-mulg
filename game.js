@@ -15,6 +15,8 @@ var BALL_SPEED_THRESH = 0.1
 var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
+// How long a gate rests on each frame as it slides open or shut.
+var GATE_FRAME_MS = 55
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
@@ -57,6 +59,7 @@ module.exports = function createGame(levels, options) {
     var activatedCells = []
     var switchCells = []
     var standingOn = null
+    var notes = {}
     var sinceLastMomentumTick = 0
     // The score as it stood when this level started. Restarting a level puts the
     // coins back, so it has to put the score back too.
@@ -102,6 +105,18 @@ module.exports = function createGame(levels, options) {
         tileChanges.push({ row: row, col: col, tile: tileNumber })
     }
 
+    function noteAt(row, col) {
+        return notes[row + ',' + col] || null
+    }
+
+    function readNotes(level) {
+        notes = {};
+
+        (level.notes || []).forEach(function(note) {
+            notes[note.row + ',' + note.col] = note.text
+        })
+    }
+
     function wireUp(level) {
         channels = []
         for (var i = 0; i < tiles.CHANNELS; i++) channels.push(false)
@@ -124,12 +139,18 @@ module.exports = function createGame(levels, options) {
             var partner = tiles.activatedPartner(tile)
 
             if (partner !== null) {
+                var frames = tiles.frameSequence(tile)
+
                 activatedCells.push({
                     row: wire.row,
                     col: wire.col,
                     channel: wire.channel,
                     base: tile,
-                    partner: partner
+                    partner: partner,
+                    frames: frames,
+                    frame: frames ? frames.indexOf(tile) : 0,
+                    target: frames ? frames.indexOf(tile) : 0,
+                    sinceFrame: 0
                 })
             }
         })
@@ -141,11 +162,37 @@ module.exports = function createGame(levels, options) {
         channels[channel] = on
 
         activatedCells.forEach(function(cell) {
-            if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.partner : cell.base)
+            if (cell.channel !== channel) return
+
+            var wanted = on ? cell.partner : cell.base
+
+            // A gate slides: it is given a frame to head for, and gets there over
+            // the next few ticks. Everything else changes on the spot.
+            if (cell.frames) {
+                cell.target = cell.frames.indexOf(wanted)
+                cell.sinceFrame = 0
+                return
+            }
+
+            setTile(cell.row, cell.col, wanted)
         })
 
         switchCells.forEach(function(cell) {
             if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.forms.on : cell.forms.off)
+        })
+    }
+
+    function advanceGates(elapsedMs) {
+        activatedCells.forEach(function(cell) {
+            if (!cell.frames || cell.frame === cell.target) return
+
+            cell.sinceFrame += elapsedMs
+
+            while (cell.sinceFrame >= GATE_FRAME_MS && cell.frame !== cell.target) {
+                cell.sinceFrame -= GATE_FRAME_MS
+                cell.frame += cell.frame < cell.target ? 1 : -1
+                setTile(cell.row, cell.col, cell.frames[cell.frame])
+            }
         })
     }
 
@@ -189,8 +236,11 @@ module.exports = function createGame(levels, options) {
         // Coins vanish as they are collected, so play on a copy of the level.
         game.grid = copyGrid(game.level.tiles)
         checkForCollision = collisionChecker(game.grid, blocks)
+        readNotes(game.level)
         wireUp(game.level)
         standingOn = null
+        game.notes = []
+        game.lastNote = null
 
         game.score = keepScore ? scoreAtLevelStart : 0
         scoreAtLevelStart = game.score
@@ -322,7 +372,16 @@ module.exports = function createGame(levels, options) {
             here = ballSquare()
         }
 
-        if (tiles.isCoin(here.tile)) {
+        if (tiles.isLetter(here.tile)) {
+            var text = noteAt(here.row, here.col)
+            game.grid[here.row][here.col] = tiles.TILE.FLOOR
+            tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
+
+            if (text) {
+                game.notes.push(text)
+                game.lastNote = text
+            }
+        } else if (tiles.isCoin(here.tile)) {
             game.score = game.score + tiles.coinValue(here.tile)
             game.grid[here.row][here.col] = tiles.TILE.FLOOR
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
@@ -349,6 +408,7 @@ module.exports = function createGame(levels, options) {
             updateMomentum = true
         }
 
+        advanceGates(elapsedMsSinceLastTick)
         updateBallPos(updateMomentum)
         checkWhatBallIsOn()
     }
@@ -366,6 +426,7 @@ module.exports = function createGame(levels, options) {
     game.startNewGame = startNewGame
     game.consumeTileChanges = consumeTileChanges
     game.ballSquare = ballSquare
+    game.noteAt = noteAt
     game.channelOn = function(channel) { return channels[channel] }
 
     startNewGame()

@@ -64,6 +64,46 @@ body {
     visibility: hidden;
 }
 
+#note {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-style: italic;
+    color: #f4f0d0;
+    background: #3a3a2a;
+    border-left: 3px solid #ffd700;
+    display: none;
+}
+
+#notes_toggle {
+    margin-top: 6px;
+    font: inherit;
+    font-size: 12px;
+    color: #eee;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 3px 8px;
+    cursor: pointer;
+    display: none;
+}
+
+#notes_toggle:hover {
+    background: #3d3d3d;
+}
+
+#notes_list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: #ccc;
+    display: none;
+}
+
+#notes_list li {
+    margin-bottom: 4px;
+}
+
 #help {
     margin: 4px 0 0;
     font-size: 12px;

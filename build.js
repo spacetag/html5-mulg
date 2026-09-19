@@ -44,6 +44,8 @@ var BALL_SPEED_THRESH = 0.1
 var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
+// How long a gate rests on each frame as it slides open or shut.
+var GATE_FRAME_MS = 55
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
@@ -86,6 +88,7 @@ module.exports = function createGame(levels, options) {
     var activatedCells = []
     var switchCells = []
     var standingOn = null
+    var notes = {}
     var sinceLastMomentumTick = 0
     // The score as it stood when this level started. Restarting a level puts the
     // coins back, so it has to put the score back too.
@@ -131,6 +134,18 @@ module.exports = function createGame(levels, options) {
         tileChanges.push({ row: row, col: col, tile: tileNumber })
     }
 
+    function noteAt(row, col) {
+        return notes[row + ',' + col] || null
+    }
+
+    function readNotes(level) {
+        notes = {};
+
+        (level.notes || []).forEach(function(note) {
+            notes[note.row + ',' + note.col] = note.text
+        })
+    }
+
     function wireUp(level) {
         channels = []
         for (var i = 0; i < tiles.CHANNELS; i++) channels.push(false)
@@ -153,12 +168,18 @@ module.exports = function createGame(levels, options) {
             var partner = tiles.activatedPartner(tile)
 
             if (partner !== null) {
+                var frames = tiles.frameSequence(tile)
+
                 activatedCells.push({
                     row: wire.row,
                     col: wire.col,
                     channel: wire.channel,
                     base: tile,
-                    partner: partner
+                    partner: partner,
+                    frames: frames,
+                    frame: frames ? frames.indexOf(tile) : 0,
+                    target: frames ? frames.indexOf(tile) : 0,
+                    sinceFrame: 0
                 })
             }
         })
@@ -170,11 +191,37 @@ module.exports = function createGame(levels, options) {
         channels[channel] = on
 
         activatedCells.forEach(function(cell) {
-            if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.partner : cell.base)
+            if (cell.channel !== channel) return
+
+            var wanted = on ? cell.partner : cell.base
+
+            // A gate slides: it is given a frame to head for, and gets there over
+            // the next few ticks. Everything else changes on the spot.
+            if (cell.frames) {
+                cell.target = cell.frames.indexOf(wanted)
+                cell.sinceFrame = 0
+                return
+            }
+
+            setTile(cell.row, cell.col, wanted)
         })
 
         switchCells.forEach(function(cell) {
             if (cell.channel === channel) setTile(cell.row, cell.col, on ? cell.forms.on : cell.forms.off)
+        })
+    }
+
+    function advanceGates(elapsedMs) {
+        activatedCells.forEach(function(cell) {
+            if (!cell.frames || cell.frame === cell.target) return
+
+            cell.sinceFrame += elapsedMs
+
+            while (cell.sinceFrame >= GATE_FRAME_MS && cell.frame !== cell.target) {
+                cell.sinceFrame -= GATE_FRAME_MS
+                cell.frame += cell.frame < cell.target ? 1 : -1
+                setTile(cell.row, cell.col, cell.frames[cell.frame])
+            }
         })
     }
 
@@ -218,8 +265,11 @@ module.exports = function createGame(levels, options) {
         // Coins vanish as they are collected, so play on a copy of the level.
         game.grid = copyGrid(game.level.tiles)
         checkForCollision = collisionChecker(game.grid, blocks)
+        readNotes(game.level)
         wireUp(game.level)
         standingOn = null
+        game.notes = []
+        game.lastNote = null
 
         game.score = keepScore ? scoreAtLevelStart : 0
         scoreAtLevelStart = game.score
@@ -351,7 +401,16 @@ module.exports = function createGame(levels, options) {
             here = ballSquare()
         }
 
-        if (tiles.isCoin(here.tile)) {
+        if (tiles.isLetter(here.tile)) {
+            var text = noteAt(here.row, here.col)
+            game.grid[here.row][here.col] = tiles.TILE.FLOOR
+            tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
+
+            if (text) {
+                game.notes.push(text)
+                game.lastNote = text
+            }
+        } else if (tiles.isCoin(here.tile)) {
             game.score = game.score + tiles.coinValue(here.tile)
             game.grid[here.row][here.col] = tiles.TILE.FLOOR
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
@@ -378,6 +437,7 @@ module.exports = function createGame(levels, options) {
             updateMomentum = true
         }
 
+        advanceGates(elapsedMsSinceLastTick)
         updateBallPos(updateMomentum)
         checkWhatBallIsOn()
     }
@@ -395,6 +455,7 @@ module.exports = function createGame(levels, options) {
     game.startNewGame = startNewGame
     game.consumeTileChanges = consumeTileChanges
     game.ballSquare = ballSquare
+    game.noteAt = noteAt
     game.channelOn = function(channel) { return channels[channel] }
 
     startNewGame()
@@ -441,6 +502,24 @@ var hud = {
     message: document.getElementById("message")
 }
 
+var notesUi = {
+    note: document.getElementById("note"),
+    toggle: document.getElementById("notes_toggle"),
+    list: document.getElementById("notes_list")
+}
+
+// Rebuilt only when a note is picked up, not every frame.
+var notesShown = -1
+
+notesUi.toggle.onclick = function() {
+    var open = notesUi.list.style.display === "block"
+    notesUi.list.style.display = open ? "none" : "block"
+    // The panel above holds the newest note, so hide it while the full list is
+    // up rather than printing that note twice.
+    notesUi.note.style.display = open && game.lastNote ? "block" : "none"
+    notesUi.toggle.blur()
+}
+
 function formatTime(ms) {
     var totalSeconds = Math.floor(ms / 1000)
     var minutes = Math.floor(totalSeconds / 60)
@@ -451,6 +530,29 @@ function formatTime(ms) {
 function drawLevel() {
     board.draw(game.grid)
     hud.level.textContent = (game.levelIndex + 1) + "/" + levels.length + " " + game.level.name
+    notesShown = -1
+    notesUi.list.style.display = "none"
+}
+
+// The newest note is shown as it is picked up; the button brings back the ones
+// already read.
+function drawNotes() {
+    if (game.notes.length === notesShown) return
+    notesShown = game.notes.length
+
+    notesUi.note.textContent = game.lastNote || ""
+    notesUi.note.style.display = game.lastNote && notesUi.list.style.display !== "block" ? "block" : "none"
+
+    notesUi.toggle.textContent = "Notes (" + game.notes.length + ")"
+    notesUi.toggle.style.display = game.notes.length ? "inline-block" : "none"
+
+    notesUi.list.innerHTML = ""
+
+    game.notes.forEach(function(text) {
+        var item = document.createElement("li")
+        item.textContent = text
+        notesUi.list.appendChild(item)
+    })
 }
 
 function drawHud() {
@@ -498,10 +600,12 @@ function main(elapsedMsSinceLastTick) {
 
     board.setBallPos(game.ball.x, game.ball.y)
     drawHud()
+    drawNotes()
 }
 
 drawLevel()
 drawHud()
+drawNotes()
 board.setBallPos(game.ball.x, game.ball.y)
 
 var engine = frameLoop({
@@ -1551,12 +1655,14 @@ var GOAL = 'goal'
 var COIN = 'coin'
 var DEADLY = 'deadly'
 var ONE_WAY = 'one-way'
+var LETTER = 'letter'
 
 var TILE = {
     EMPTY_PIT: 3,       // the ball falls in and the level is lost
     FLOOR: 4,
     TARGET_CROSS: 5,    // the exit
     BLOCK: 6,           // the basic wall
+    LETTER: 7,          // carries a note the player collects and reads
     SWITCH_LOW: 9,      // a switch the ball bumps, off
     SWITCH_HIGH: 10,    // the same switch, on
     VGATE_CLOSED: 11,
@@ -1589,6 +1695,13 @@ function pair(a, b) {
 pair(TILE.EMPTY_PIT, TILE.FLOOR)        // a pit fills in, a floor drops away
 pair(TILE.VGATE_CLOSED, TILE.VGATE_OPEN)
 pair(TILE.HGATE_CLOSED, TILE.HGATE_OPEN)
+
+// A gate does not jump between shut and open: the tile set carries the frames in
+// between, which are what the barrier looks like part-way out of the wall.
+var FRAME_SEQUENCES = [
+    [ TILE.VGATE_CLOSED, 12, 13, TILE.VGATE_OPEN ],
+    [ TILE.HGATE_CLOSED, 16, 17, TILE.HGATE_OPEN ]
+]
 
 // Switches show their own channel's state, so they have two forms as well.
 var SWITCH_FORMS = [
@@ -1624,11 +1737,13 @@ function classify(kind, tileNumbers, extra) {
 
 // Blocking. The switches, boxes, Hanoi pieces, walkers, magnets and the closed
 // gates all have their own behaviour in the original; until that is written they
-// are at least solid, which is how they read on the board.
+// are at least solid, which is how they read on the board. A gate part-way open
+// is solid too, so the ball cannot squeeze through one that is still moving.
 classify(WALL, [
     TILE.BLOCK,
     9, 10,          // switches, low and high
-    11, 15,         // gates, closed
+    11, 12, 13,     // vertical gate, shut and opening
+    15, 16, 17,     // horizontal gate, shut and opening
     38, 113,        // heavy box, light box
     133, 134, 135, 136, 137, 138, 139, // Hanoi tower pieces
     140, 141, 142, 143,                // walkers
@@ -1637,6 +1752,7 @@ classify(WALL, [
 ])
 
 classify(GOAL, [ TILE.TARGET_CROSS ])
+classify(LETTER, [ TILE.LETTER ])
 
 // 87 is a descending floor with no crossings left, so stepping on it is a fall.
 classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
@@ -1685,6 +1801,20 @@ function surface(tileNumber) {
     return SURFACES[tileNumber] || FLOOR_SURFACE
 }
 
+// The frames a tile animates through, in order from shut to open, or null if it
+// changes in one step.
+function frameSequence(tileNumber) {
+    for (var i = 0; i < FRAME_SEQUENCES.length; i++) {
+        if (FRAME_SEQUENCES[i].indexOf(tileNumber) !== -1) return FRAME_SEQUENCES[i]
+    }
+
+    return null
+}
+
+function isLetter(tileNumber) {
+    return tileInfo(tileNumber).kind === LETTER
+}
+
 // The other form of a tile that can be switched, or null if it has none.
 function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
@@ -1721,6 +1851,9 @@ module.exports = {
     surface: surface,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
+    frameSequence: frameSequence,
+    isLetter: isLetter,
+    LETTER: LETTER,
     CHANNELS: 32
 }
 

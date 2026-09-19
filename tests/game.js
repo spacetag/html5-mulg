@@ -341,6 +341,9 @@ test('bumping a switch throws its channel and opens the gate on it', function(t)
 
 	t.ok(game.channelOn(0), 'bumping the switch threw the channel')
 	t.equal(game.grid[1][3], tiles.TILE.SWITCH_HIGH, 'the switch shows as thrown')
+
+	roll(game, 'none', 40)   // the gate takes a moment to slide open
+
 	t.equal(game.grid[2][3], tiles.TILE.VGATE_OPEN, 'the gate opened')
 	t.notOk(tiles.isWall(game.grid[2][3]), 'and it is no longer solid')
 	t.end()
@@ -363,6 +366,9 @@ test('an opened gate closes again when the switch is thrown back', function(t) {
 	rollUntil(game, 'right', function() { return !game.channelOn(0) }, 400)
 
 	t.notOk(game.channelOn(0), 'the second bump threw it back')
+
+	roll(game, 'none', 40)
+
 	t.equal(game.grid[2][3], VGATE, 'the gate is closed again')
 	t.end()
 })
@@ -405,6 +411,9 @@ test('a floor switch is only on while the ball is on it', function(t) {
 
 	t.notOk(game.channelOn(7), 'rolling off lets it back up')
 	t.equal(game.grid[1][1], FLOOR_SWITCH)
+
+	roll(game, 'none', 40)
+
 	t.equal(game.grid[2][2], VGATE, 'so the gate closed again')
 	t.end()
 })
@@ -420,6 +429,7 @@ test('the renderer is told about every square a channel changes', function(t) {
 	var game = createGame([ level ])
 
 	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+	roll(game, 'none', 40)
 
 	var changed = game.consumeTileChanges().map(function(change) {
 		return change.row + ',' + change.col
@@ -441,6 +451,7 @@ test('channels start off and a level restart puts them back', function(t) {
 	var game = createGame([ level ])
 
 	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+	roll(game, 'none', 40)
 	t.ok(game.channelOn(0))
 
 	game.advance()
@@ -509,5 +520,172 @@ test('level 4: the filled pit can be crossed, the open one cannot', function(t) 
 	t.equal(filled.status, createGame.PLAYING, 'with the switch thrown the ball survives row 5')
 	t.ok(filled.ballSquare().col >= 7, 'and reaches the far side, where the exit is')
 	t.equal(filled.lives, 3, 'without losing a life')
+	t.end()
+})
+
+test('a gate slides open through its in-between frames', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+	var frames = tiles.frameSequence(VGATE)
+	var seen = []
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+
+	for (var i = 0; i < 40; i++) {
+		game.tick(16)
+		var showing = game.grid[2][3]
+		if (seen[seen.length - 1] !== showing) seen.push(showing)
+	}
+
+	t.deepEqual(seen, frames, 'it passed through every frame in order, shut to open')
+	t.ok(seen.length > 2, 'it did not jump straight to open')
+	t.end()
+})
+
+test('a gate slides shut again the same way, backwards', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+	roll(game, 'none', 40)
+	t.equal(game.grid[2][3], tiles.TILE.VGATE_OPEN)
+
+	roll(game, 'left', 30)
+	rollUntil(game, 'right', function() { return !game.channelOn(0) }, 400)
+
+	var seen = []
+	for (var i = 0; i < 40; i++) {
+		game.tick(16)
+		var showing = game.grid[2][3]
+		if (seen[seen.length - 1] !== showing) seen.push(showing)
+	}
+
+	t.deepEqual(seen, [ tiles.TILE.VGATE_OPEN, 13, 12, VGATE ], 'back down the frames to shut')
+	t.end()
+})
+
+test('a gate that is still sliding open is still solid', function(t) {
+	var level = corridor('one', [ F, F, SWITCH ])
+	level.tiles[2][3] = VGATE
+	level.wiring = [
+		{ row: 1, col: 3, channel: 0 },
+		{ row: 2, col: 3, channel: 0 }
+	]
+
+	var game = createGame([ level ])
+
+	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
+
+	game.tick(60)
+	t.equal(game.grid[2][3], 12, 'one frame out')
+	t.ok(tiles.isWall(game.grid[2][3]), 'and the ball cannot get through it yet')
+
+	game.tick(60)
+	t.equal(game.grid[2][3], 13)
+	t.ok(tiles.isWall(game.grid[2][3]))
+
+	game.tick(60)
+	t.equal(game.grid[2][3], tiles.TILE.VGATE_OPEN, 'now it is open')
+	t.notOk(tiles.isWall(game.grid[2][3]), 'and only now can the ball pass')
+	t.end()
+})
+
+/***** Letters *****/
+
+var LETTER = tiles.TILE.LETTER
+
+test('rolling over a letter collects the note written on it', function(t) {
+	var level = corridor('one', [ F, LETTER, F ])
+	level.notes = [ { row: 1, col: 2, text: 'Mind the death cubes.' } ]
+
+	var game = createGame([ level ])
+
+	t.deepEqual(game.notes, [], 'nothing collected yet')
+	t.equal(game.lastNote, null)
+
+	roll(game, 'right', 200)
+
+	t.deepEqual(game.notes, [ 'Mind the death cubes.' ], 'the note was picked up')
+	t.equal(game.lastNote, 'Mind the death cubes.', 'and it is the one to show')
+	t.equal(game.grid[1][2], tiles.TILE.FLOOR, 'the letter is gone from the board')
+	t.end()
+})
+
+test('a letter is only collected once', function(t) {
+	var level = corridor('one', [ LETTER, F, F ])
+	level.notes = [ { row: 1, col: 1, text: 'Only once.' } ]
+
+	var game = createGame([ level ])
+
+	roll(game, 'right', 40)
+	roll(game, 'left', 200)
+	roll(game, 'right', 200)
+
+	t.equal(game.notes.length, 1)
+	t.end()
+})
+
+test('letters are collected in the order they are found', function(t) {
+	var level = corridor('one', [ LETTER, F, LETTER, F ])
+	level.notes = [
+		{ row: 1, col: 1, text: 'First.' },
+		{ row: 1, col: 3, text: 'Second.' }
+	]
+
+	var game = createGame([ level ])
+
+	roll(game, 'right', 300)
+
+	t.deepEqual(game.notes, [ 'First.', 'Second.' ])
+	t.equal(game.lastNote, 'Second.', 'the newest one is the one to show')
+	t.end()
+})
+
+test('a letter with no note written on it still clears', function(t) {
+	var level = corridor('one', [ F, LETTER, F ])
+
+	var game = createGame([ level ])
+
+	roll(game, 'right', 200)
+
+	t.equal(game.grid[1][2], tiles.TILE.FLOOR)
+	t.deepEqual(game.notes, [], 'and there is nothing to read')
+	t.end()
+})
+
+test('restarting a level puts the letters back and forgets the notes', function(t) {
+	var level = corridor('one', [ F, LETTER, X ])
+	level.notes = [ { row: 1, col: 2, text: 'Turn back.' } ]
+
+	var game = createGame([ level ])
+
+	roll(game, 'right', 300)
+	t.equal(game.status, createGame.DEAD)
+	t.deepEqual(game.notes, [ 'Turn back.' ])
+
+	game.advance()
+
+	t.equal(game.grid[1][2], LETTER, 'the letter is back on the board')
+	t.deepEqual(game.notes, [], 'and the notes are forgotten')
+	t.equal(game.lastNote, null)
+	t.end()
+})
+
+test('a letter is not a wall and not deadly', function(t) {
+	t.notOk(tiles.isWall(LETTER))
+	t.notOk(tiles.isDeadly(LETTER))
+	t.ok(tiles.isLetter(LETTER))
 	t.end()
 })
