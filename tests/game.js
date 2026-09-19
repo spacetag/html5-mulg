@@ -1,5 +1,6 @@
 var test = require('tape')
 var createGame = require('../game')
+var levels = require('../levels')
 var tiles = require('../tiles')
 
 var W = tiles.TILE.BLOCK
@@ -446,5 +447,67 @@ test('channels start off and a level restart puts them back', function(t) {
 
 	t.notOk(game.channelOn(0), 'the channel is off again')
 	t.equal(game.grid[2][3], VGATE, 'and the gate is closed again')
+	t.end()
+})
+
+// Level 4 shipped unwinnable: its pit lay across the only corridor to the exit
+// and was wired to nothing, so there was no way past it and nothing to fill it
+// in with. It has a switch now, and these play that out on the level as shipped.
+//
+// Which squares can be reached is tests/levels.js' job. This puts the ball where
+// it needs to be and checks what the rules then do, because a route the grid
+// allows still has to work under the marble's own momentum.
+function level4() {
+	var game = createGame(levels)
+
+	while (game.levelIndex < 3) {
+		game.status = createGame.LEVEL_WON
+		game.advance()
+	}
+
+	return game
+}
+
+function placeBall(game, row, col) {
+	game.ball.x = col * createGame.TILE_SIZE
+	game.ball.y = row * createGame.TILE_SIZE
+	game.ball.sx = 0
+	game.ball.sy = 0
+}
+
+test('level 4: the switch below the corridor fills its pit in', function(t) {
+	var game = level4()
+
+	t.equal(game.level.name, 'Slippery', 'this is the level that could not be won')
+	t.ok(tiles.isDeadly(game.grid[5][4]), 'the pit starts open')
+
+	placeBall(game, 5, 1)
+	rollUntil(game, 'down', function() { return game.channelOn(0) }, 300)
+
+	t.ok(game.channelOn(0), 'rolling into the switch threw its channel')
+	t.equal(game.grid[5][4], tiles.TILE.FLOOR, 'which filled the pit in')
+	t.equal(game.status, createGame.PLAYING, 'and throwing it is safe')
+	t.end()
+})
+
+test('level 4: the filled pit can be crossed, the open one cannot', function(t) {
+	var open = level4()
+
+	placeBall(open, 5, 1)
+	rollUntil(open, 'right', function() { return open.ballSquare().col >= 7 }, 600)
+
+	t.equal(open.status, createGame.DEAD, 'rolling along row 5 into the open pit is fatal')
+	t.equal(open.ballSquare().col, 4, 'and the ball gets no further than the pit')
+
+	var filled = level4()
+
+	placeBall(filled, 5, 1)
+	rollUntil(filled, 'down', function() { return filled.channelOn(0) }, 300)
+	placeBall(filled, 5, 1)
+	rollUntil(filled, 'right', function() { return filled.ballSquare().col >= 7 }, 600)
+
+	t.equal(filled.status, createGame.PLAYING, 'with the switch thrown the ball survives row 5')
+	t.ok(filled.ballSquare().col >= 7, 'and reaches the far side, where the exit is')
+	t.equal(filled.lives, 3, 'without losing a life')
 	t.end()
 })

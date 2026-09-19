@@ -10,29 +10,6 @@ function forEachLevel(t, check) {
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 
-function isWired(level, row, col) {
-	return (level.wiring || []).some(function(wire) {
-		return wire.row === row && wire.col === col
-	})
-}
-
-// A wired gate is a wall now, but a switch somewhere can open it, so the walk
-// below is allowed through it.
-function canBeOpened(level, row, col) {
-	if (!isWired(level, row, col)) return false
-
-	var partner = tiles.activatedPartner(level.tiles[row][col])
-	return partner !== null && !tiles.isWall(partner)
-}
-
-// Likewise a wired pit: a switch fills it in, so crossing it is not a death.
-function canBeFilled(level, row, col) {
-	if (!isWired(level, row, col)) return false
-
-	var partner = tiles.activatedPartner(level.tiles[row][col])
-	return partner !== null && !tiles.isDeadly(partner)
-}
-
 var STEPS = [
 	{ row: -1, col: 0, direction: 'up' },
 	{ row: 1, col: 0, direction: 'down' },
@@ -40,41 +17,106 @@ var STEPS = [
 	{ row: 0, col: 1, direction: 'right' }
 ]
 
-// Walks the level from the start square, refusing to step on walls or into a
-// one-way arrow from the wrong side, and returns the squares it can get to.
-// Deadly squares count as reachable unless `avoidDeadly` is asked for: rolling
-// onto one is allowed, it just costs a life.
-function reachableFromStart(level, options) {
-	var width = level.tiles[0].length
+// Walks the level from the start square as a search over (square, channel
+// state), and reports the squares the ball can get to and whether the goal is
+// one of them. It refuses to step on walls, into a one-way arrow from the wrong
+// side, or through anything deadly.
+//
+// Channel state has to be part of the walk rather than a property of a square.
+// A wired gate opens and a wired pit fills in, but only once a switch on that
+// channel has been reached and thrown, and a switch can perfectly well be
+// stranded behind the very thing it clears. Bumping a switch the ball cannot
+// roll over flips its channel and leaves the ball where it is, which is what the
+// rules do. A floor switch is held down only while the ball sits on it, so it
+// opens the way out of its own square and no further.
+//
+// This is what the board allows, not whether the marble can be steered along it;
+// tests/game.js plays the rules themselves.
+function explore(level) {
 	var height = level.tiles.length
+	var width = level.tiles[0].length
+	var channelAt = {};
+
+	(level.wiring || []).forEach(function(wire) {
+		channelAt[wire.row + ',' + wire.col] = wire.channel
+	})
+
+	// What a square shows with these channels thrown.
+	function tileAt(row, col, channels) {
+		var base = level.tiles[row][col]
+		var channel = channelAt[row + ',' + col]
+
+		if (channel === undefined || (channels & (1 << channel)) === 0) return base
+
+		var forms = tiles.switchForms(base)
+		if (forms) return forms.on
+
+		var partner = tiles.activatedPartner(base)
+		return partner === null ? base : partner
+	}
+
+	var squares = {}
 	var seen = {}
-	var queue = [ level.start ]
+	var queue = [ { row: level.start.row, col: level.start.col, channels: 0 } ]
+	var finished = false
 
 	while (queue.length) {
 		var at = queue.shift()
-		var key = at.row + ',' + at.col
+		var key = at.row + ',' + at.col + ',' + at.channels
 
 		if (seen[key]) continue
 
-		seen[key] = at
+		seen[key] = true
+		squares[at.row + ',' + at.col] = true
+
+		var here = tileAt(at.row, at.col, at.channels)
+
+		if (tiles.isGoal(here)) finished = true
+		// Rolling onto a pit or a death cube is where the ball's journey ends.
+		if (tiles.isDeadly(here)) continue
+
+		// A floor switch is held down for as long as the ball is on this square.
+		var held = at.channels
+		var switchHere = tiles.switchForms(here)
+		var channelHere = channelAt[at.row + ',' + at.col]
+
+		if (switchHere && switchHere.momentary && channelHere !== undefined) {
+			held = held | (1 << channelHere)
+		}
+
+		var leaving = tiles.oneWayDirection(here)
 
 		STEPS.forEach(function(step) {
 			var row = at.row + step.row
 			var col = at.col + step.col
 
 			if (row < 0 || col < 0 || row >= height || col >= width) return
+			// A one-way arrow will not let the ball turn back through it.
+			if (leaving !== null && OPPOSITE[leaving] === step.direction) return
 
-			var tile = level.tiles[row][col]
-			if (tiles.isWall(tile) && !canBeOpened(level, row, col)) return
+			var tile = tileAt(row, col, held)
+
+			if (tiles.isWall(tile)) {
+				var forms = tiles.switchForms(tile)
+				var channel = channelAt[row + ',' + col]
+
+				// Bumping a switch throws it, and the ball stays where it is.
+				if (forms && !forms.momentary && channel !== undefined) {
+					queue.push({ row: at.row, col: at.col, channels: at.channels ^ (1 << channel) })
+				}
+
+				return
+			}
+
 			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
-			if (options && options.avoidDeadly && tiles.isDeadly(tile) && !canBeFilled(level, row, col)) return
 
-			queue.push({ row: row, col: col })
+			queue.push({ row: row, col: col, channels: at.channels })
 		})
 	}
 
-	return seen
+	return { squares: squares, finished: finished }
 }
+
 
 test('there is at least one level', function(t) {
 	t.ok(levels.length > 0)
@@ -105,7 +147,7 @@ test('every level starts the ball on a square it can sit on', function(t) {
 	t.end()
 })
 
-test('every level has exactly one goal, and it can be reached', function(t) {
+test('every level has exactly one goal', function(t) {
 	forEachLevel(t, function(level, name) {
 		var goals = []
 
@@ -116,9 +158,6 @@ test('every level has exactly one goal, and it can be reached', function(t) {
 		})
 
 		t.equal(goals.length, 1, name + ' has one goal')
-
-		var reachable = reachableFromStart(level)
-		t.ok(reachable[goals[0].row + ',' + goals[0].col], name + ' can be finished')
 	})
 
 	t.end()
@@ -128,17 +167,7 @@ test('every level has exactly one goal, and it can be reached', function(t) {
 // the exit, which made that level impossible: dying does not get you past it.
 test('every level can be finished without dying', function(t) {
 	forEachLevel(t, function(level, name) {
-		var goal = null
-
-		level.tiles.forEach(function(row, rowIndex) {
-			row.forEach(function(tile, colIndex) {
-				if (tiles.isGoal(tile)) goal = { row: rowIndex, col: colIndex }
-			})
-		})
-
-		var safe = reachableFromStart(level, { avoidDeadly: true })
-
-		t.ok(safe[goal.row + ',' + goal.col],
+		t.ok(explore(level).finished,
 			name + ' has a route to the exit that never crosses a deadly square')
 	})
 
@@ -149,7 +178,7 @@ test('every level can be finished without dying', function(t) {
 // the level, so it can never be collected at all.
 test('every coin in a level can be collected without dying', function(t) {
 	forEachLevel(t, function(level, name) {
-		var safe = reachableFromStart(level, { avoidDeadly: true })
+		var safe = explore(level).squares
 
 		level.tiles.forEach(function(row, rowIndex) {
 			row.forEach(function(tile, colIndex) {
@@ -159,6 +188,58 @@ test('every coin in a level can be collected without dying', function(t) {
 			})
 		})
 	})
+
+	t.end()
+})
+
+// The two tests above are only worth their salt if the walk really refuses to
+// cross a pit, and really insists on reaching a switch before crediting what it
+// opens. A pit wired to a switch you can only get at from the far side clears
+// nothing.
+test('a pit across the only corridor is a wall, not a toll', function(t) {
+	var W = tiles.TILE.BLOCK
+	var F = tiles.TILE.FLOOR
+	var G = tiles.TILE.TARGET_CROSS
+	var P = tiles.TILE.EMPTY_PIT
+	var S = tiles.TILE.SWITCH_LOW
+
+	t.notOk(explore({
+		name: 'unwired',
+		start: { row: 1, col: 1 },
+		tiles: [
+			[ W, W, W, W, W ],
+			[ W, F, P, G, W ],
+			[ W, W, W, W, W ]
+		]
+	}).finished, 'a goal only reachable through a pit cannot be reached')
+
+	t.ok(explore({
+		name: 'wired',
+		start: { row: 1, col: 1 },
+		tiles: [
+			[ W, W, W, W, W ],
+			[ W, F, P, G, W ],
+			[ W, S, W, W, W ]
+		],
+		wiring: [
+			{ row: 2, col: 1, channel: 0 },
+			{ row: 1, col: 2, channel: 0 }
+		]
+	}).finished, 'a switch on the near side fills the pit in and opens the way')
+
+	t.notOk(explore({
+		name: 'stranded',
+		start: { row: 1, col: 1 },
+		tiles: [
+			[ W, W, W, W, W ],
+			[ W, F, P, G, W ],
+			[ W, W, W, S, W ]
+		],
+		wiring: [
+			{ row: 2, col: 3, channel: 0 },
+			{ row: 1, col: 2, channel: 0 }
+		]
+	}).finished, 'a switch behind the pit cannot be reached to throw')
 
 	t.end()
 })
