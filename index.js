@@ -40,6 +40,24 @@ var hud = {
     message: document.getElementById("message")
 }
 
+var notesUi = {
+    note: document.getElementById("note"),
+    toggle: document.getElementById("notes_toggle"),
+    list: document.getElementById("notes_list")
+}
+
+// Rebuilt only when a note is picked up, not every frame.
+var notesShown = -1
+
+notesUi.toggle.onclick = function() {
+    var open = notesUi.list.style.display === "block"
+    notesUi.list.style.display = open ? "none" : "block"
+    // The panel above holds the newest note, so hide it while the full list is
+    // up rather than printing that note twice.
+    notesUi.note.style.display = open && game.lastNote ? "block" : "none"
+    notesUi.toggle.blur()
+}
+
 function formatTime(ms) {
     var totalSeconds = Math.floor(ms / 1000)
     var minutes = Math.floor(totalSeconds / 60)
@@ -51,9 +69,32 @@ function drawLevel() {
     board.draw(game.grid)
     board.setBallGhost(game.ghost)
     hud.level.textContent = (game.levelIndex + 1) + "/" + levels.length + " " + game.level.name
+    notesShown = -1
+    notesUi.list.style.display = "none"
     // The level also moves on by being played, so the selector follows the game
     // rather than the other way round.
     levelSelect.value = String(game.levelIndex)
+}
+
+// The newest note is shown as it is picked up; the button brings back the ones
+// already read.
+function drawNotes() {
+    if (game.notes.length === notesShown) return
+    notesShown = game.notes.length
+
+    notesUi.note.textContent = game.lastNote || ""
+    notesUi.note.style.display = game.lastNote && notesUi.list.style.display !== "block" ? "block" : "none"
+
+    notesUi.toggle.textContent = "Notes (" + game.notes.length + ")"
+    notesUi.toggle.style.display = game.notes.length ? "inline-block" : "none"
+
+    notesUi.list.innerHTML = ""
+
+    game.notes.forEach(function(text) {
+        var item = document.createElement("li")
+        item.textContent = text
+        notesUi.list.appendChild(item)
+    })
 }
 
 function drawHud() {
@@ -134,11 +175,13 @@ function main(elapsedMsSinceLastTick) {
 
     board.setBallPos(game.ball.x, game.ball.y)
     drawHud()
+    drawNotes()
 }
 
 drawSpeed()
 drawLevel()
 drawHud()
+drawNotes()
 board.setBallPos(game.ball.x, game.ball.y)
 
 var engine = frameLoop({

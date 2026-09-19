@@ -11,12 +11,14 @@ var GOAL = 'goal'
 var COIN = 'coin'
 var DEADLY = 'deadly'
 var ONE_WAY = 'one-way'
+var LETTER = 'letter'
 
 var TILE = {
     EMPTY_PIT: 3,       // the ball falls in and the level is lost
     FLOOR: 4,
     TARGET_CROSS: 5,    // the exit
     BLOCK: 6,           // the basic wall
+    LETTER: 7,          // carries a note the player collects and reads
     SWITCH_LOW: 9,      // a switch the ball bumps, off
     SWITCH_HIGH: 10,    // the same switch, on
     VGATE_CLOSED: 11,
@@ -49,6 +51,13 @@ function pair(a, b) {
 pair(TILE.EMPTY_PIT, TILE.FLOOR)        // a pit fills in, a floor drops away
 pair(TILE.VGATE_CLOSED, TILE.VGATE_OPEN)
 pair(TILE.HGATE_CLOSED, TILE.HGATE_OPEN)
+
+// A gate does not jump between shut and open: the tile set carries the frames in
+// between, which are what the barrier looks like part-way out of the wall.
+var FRAME_SEQUENCES = [
+    [ TILE.VGATE_CLOSED, 12, 13, TILE.VGATE_OPEN ],
+    [ TILE.HGATE_CLOSED, 16, 17, TILE.HGATE_OPEN ]
+]
 
 // Switches show their own channel's state, so they have two forms as well.
 var SWITCH_FORMS = [
@@ -84,11 +93,13 @@ function classify(kind, tileNumbers, extra) {
 
 // Blocking. The switches, boxes, Hanoi pieces, walkers, magnets and the closed
 // gates all have their own behaviour in the original; until that is written they
-// are at least solid, which is how they read on the board.
+// are at least solid, which is how they read on the board. A gate part-way open
+// is solid too, so the ball cannot squeeze through one that is still moving.
 classify(WALL, [
     TILE.BLOCK,
     9, 10,          // switches, low and high
-    11, 15,         // gates, closed
+    11, 12, 13,     // vertical gate, shut and opening
+    15, 16, 17,     // horizontal gate, shut and opening
     38, 113,        // heavy box, light box
     133, 134, 135, 136, 137, 138, 139, // Hanoi tower pieces
     140, 141, 142, 143,                // walkers
@@ -97,6 +108,7 @@ classify(WALL, [
 ])
 
 classify(GOAL, [ TILE.TARGET_CROSS ])
+classify(LETTER, [ TILE.LETTER ])
 
 // 87 is a descending floor with no crossings left, so stepping on it is a fall.
 classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
@@ -145,6 +157,20 @@ function surface(tileNumber) {
     return SURFACES[tileNumber] || FLOOR_SURFACE
 }
 
+// The frames a tile animates through, in order from shut to open, or null if it
+// changes in one step.
+function frameSequence(tileNumber) {
+    for (var i = 0; i < FRAME_SEQUENCES.length; i++) {
+        if (FRAME_SEQUENCES[i].indexOf(tileNumber) !== -1) return FRAME_SEQUENCES[i]
+    }
+
+    return null
+}
+
+function isLetter(tileNumber) {
+    return tileInfo(tileNumber).kind === LETTER
+}
+
 // The other form of a tile that can be switched, or null if it has none.
 function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
@@ -181,5 +207,8 @@ module.exports = {
     surface: surface,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
+    frameSequence: frameSequence,
+    isLetter: isLetter,
+    LETTER: LETTER,
     CHANNELS: 32
 }
