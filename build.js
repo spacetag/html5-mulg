@@ -75,6 +75,7 @@ module.exports = function createGame(levels, options) {
         lives: livesPerGame,
         elapsedMs: 0,
         ball: { x: 0, y: 0, sx: 0, sy: 0 },
+        ghost: false,
         input: { left: false, right: false, up: false, down: false }
     }
 
@@ -86,6 +87,9 @@ module.exports = function createGame(levels, options) {
     var activatedCells = []
     var switchCells = []
     var standingOn = null
+    // The secret pass-through key. Undocumented on purpose, so it is off until
+    // something asks for it.
+    var ghost = false
     var sinceLastMomentumTick = 0
     // The score as it stood when this level started. Restarting a level puts the
     // coins back, so it has to put the score back too.
@@ -109,6 +113,13 @@ module.exports = function createGame(levels, options) {
         }
     }
 
+    // Nothing can roll off the board in normal play, but passing through walls
+    // can, and the board already wraps for the squares. Keep the marble's own
+    // position on it too, so what is drawn is the square it is really on.
+    function wrapCoord(value, offset, size) {
+        return ((value + offset) % size + size) % size - offset
+    }
+
     function ballSquare() {
         var at = wrapped(ballRow(), ballCol())
         at.tile = game.grid[at.row][at.col]
@@ -118,6 +129,7 @@ module.exports = function createGame(levels, options) {
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
     // ball is trying to enter against.
     function blocks(tileNumber, direction) {
+        if (ghost) return false
         if (tiles.isWall(tileNumber)) return true
 
         var oneWay = tiles.oneWayDirection(tileNumber)
@@ -247,6 +259,15 @@ module.exports = function createGame(levels, options) {
         else loadLevel(game.levelIndex, true)
     }
 
+    // Jump straight to a level, which is what the level selector does. The score
+    // banked so far carries over, and so do the lives, except that a game which
+    // has already run out of them gets a fresh set to play the level with.
+    function goToLevel(index) {
+        if (index < 0 || index >= levels.length) return
+        if (game.lives <= 0) game.lives = livesPerGame
+        loadLevel(index, true)
+    }
+
     /***** Movement *****/
 
     function bumped(row, col) {
@@ -302,8 +323,8 @@ module.exports = function createGame(levels, options) {
         if (Math.abs(ball.sx) < BALL_SPEED_THRESH) ball.sx = 0
         if (Math.abs(ball.sy) < BALL_SPEED_THRESH) ball.sy = 0
 
-        ball.x = ball.x + ball.sx / FPS_MULTIPLIER
-        ball.y = ball.y + ball.sy / FPS_MULTIPLIER
+        ball.x = wrapCoord(ball.x + ball.sx / FPS_MULTIPLIER, OFFSET_X, game.grid[0].length * TILE_SIZE)
+        ball.y = wrapCoord(ball.y + ball.sy / FPS_MULTIPLIER, OFFSET_Y, game.grid.length * TILE_SIZE)
     }
 
     /***** What the ball is standing on *****/
@@ -392,6 +413,16 @@ module.exports = function createGame(levels, options) {
 
     game.tick = tick
     game.advance = advance
+    game.goToLevel = goToLevel
+
+    game.setGhost = function(on) {
+        ghost = !!on
+        game.ghost = ghost
+        return ghost
+    }
+
+    game.toggleGhost = function() { return game.setGhost(!ghost) }
+
     game.startNewGame = startNewGame
     game.consumeTileChanges = consumeTileChanges
     game.ballSquare = ballSquare
@@ -429,9 +460,21 @@ var KEY_TO_DIRECTION = {
     40: 'down'
 }
 var RESTART_KEY = 82 // r
+// Not in the help line, and not a button: the marble going see-through is the
+// only sign this key is here.
+var GHOST_KEY = 87 // w
+
+// What the speed button steps through. A step runs the whole simulation one
+// more time per frame, so at 2x the marble, the switches and the clock all move
+// at twice the rate and the game plays exactly as it does at 1x, only quicker.
+var SPEEDS = [ 1, 2 ]
+var speedIndex = 0
 
 var game = createGame(levels)
 var board = createBoard(document.getElementById("board"), TILE_SIZE)
+
+var levelSelect = document.getElementById("level_select")
+var speedButton = document.getElementById("speed_button")
 
 var hud = {
     level: document.getElementById("hud_level"),
@@ -450,7 +493,11 @@ function formatTime(ms) {
 
 function drawLevel() {
     board.draw(game.grid)
+    board.setBallGhost(game.ghost)
     hud.level.textContent = (game.levelIndex + 1) + "/" + levels.length + " " + game.level.name
+    // The level also moves on by being played, so the selector follows the game
+    // rather than the other way round.
+    levelSelect.value = String(game.levelIndex)
 }
 
 function drawHud() {
@@ -459,6 +506,37 @@ function drawHud() {
     hud.lives.textContent = game.lives
     hud.message.textContent = game.message
     hud.message.style.visibility = game.message ? "visible" : "hidden"
+}
+
+/***** Controls *****/
+
+// Every level is listed, not just the ones reached: this is a port to poke at,
+// and hunting for a level behind fourteen others is no fun.
+levels.forEach(function(level, index) {
+    var option = document.createElement("option")
+    option.value = String(index)
+    option.textContent = (index + 1) + ". " + level.name
+    levelSelect.appendChild(option)
+})
+
+levelSelect.onchange = function() {
+    game.goToLevel(Number(levelSelect.value))
+    drawLevel()
+    drawHud()
+    board.setBallPos(game.ball.x, game.ball.y)
+    // Otherwise the arrow keys would go on steering the list instead of the
+    // marble.
+    levelSelect.blur()
+}
+
+function drawSpeed() {
+    speedButton.textContent = "Speed " + SPEEDS[speedIndex] + "\u00d7"
+}
+
+speedButton.onclick = function() {
+    speedIndex = (speedIndex + 1) % SPEEDS.length
+    drawSpeed()
+    speedButton.blur()
 }
 
 /***** Input *****/
@@ -485,12 +563,14 @@ document.onkeyup = function(e) {
         drawLevel()
         drawHud()
     }
+
+    if (e.keyCode === GHOST_KEY) board.setBallGhost(game.toggleGhost())
 }
 
 /***** Main Game Loop *****/
 
 function main(elapsedMsSinceLastTick) {
-    game.tick(elapsedMsSinceLastTick)
+    for (var step = 0; step < SPEEDS[speedIndex]; step++) game.tick(elapsedMsSinceLastTick)
 
     game.consumeTileChanges().forEach(function(change) {
         board.setTile(change.row, change.col, change.tile)
@@ -500,6 +580,7 @@ function main(elapsedMsSinceLastTick) {
     drawHud()
 }
 
+drawSpeed()
 drawLevel()
 drawHud()
 board.setBallPos(game.ball.x, game.ball.y)
@@ -1723,6 +1804,12 @@ module.exports = function createBoard(container, tileSize) {
         images[row][col].src = tileSrc(tileNumber)
     }
 
+    // Nothing on the page says the pass-through key exists, but once it is on
+    // the marble itself shows it, by going see-through.
+    function setBallGhost(on) {
+        ball.className = on ? "ghost" : ""
+    }
+
     // The page used to assign unitless numbers here, which only worked because
     // the document was in quirks mode.
     function setBallPos(x, y) {
@@ -1734,6 +1821,7 @@ module.exports = function createBoard(container, tileSize) {
         draw: draw,
         setTile: setTile,
         setBallPos: setBallPos,
+        setBallGhost: setBallGhost,
         tileSrc: tileSrc
     }
 }
