@@ -69,7 +69,7 @@ module.exports = [
             [ W, W, W, F, W, W, W, W, F, W ],
             [ W, V, F, F, F, F, C, W, F, W ],
             [ W, W, W, W, X, W, F, W, F, W ],
-            [ W, C, F, F, F, W, F, F, F, W ],
+            [ W, C, F, F, F, F, F, F, F, W ],
             [ W, F, W, W, F, W, W, W, X, W ],
             [ W, F, F, W, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
@@ -85,9 +85,13 @@ module.exports = [
             [ W, C, M, M, F, F, F, F, F, W ],
             [ W, F, W, W, W, W, W, W, W, W ],
             [ W, F, F, F, P, F, F, F, F, W ],
-            [ W, W, W, W, W, W, W, W, F, W ],
+            [ W, S, W, W, W, W, W, W, F, W ],
             [ W, G, F, F, F, F, F, F, F, W ],
             [ W, W, W, W, W, W, W, W, W, W ]
+        ],
+        wiring: [
+            { row: 6, col: 1, channel: 0 },   // the switch under the corridor
+            { row: 5, col: 4, channel: 0 }    // the pit it fills in
         ]
     },
     {
