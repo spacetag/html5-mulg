@@ -53,6 +53,12 @@ module.exports = function createBoard(container, tileSize) {
         images[row][col].src = tileSrc(tileNumber)
     }
 
+    // Nothing on the page says the pass-through key exists, but once it is on
+    // the marble itself shows it, by going see-through.
+    function setBallGhost(on) {
+        ball.className = on ? "ghost" : ""
+    }
+
     // The page used to assign unitless numbers here, which only worked because
     // the document was in quirks mode.
     function setBallPos(x, y) {
@@ -64,6 +70,7 @@ module.exports = function createBoard(container, tileSize) {
         draw: draw,
         setTile: setTile,
         setBallPos: setBallPos,
+        setBallGhost: setBallGhost,
         tileSrc: tileSrc
     }
 }
