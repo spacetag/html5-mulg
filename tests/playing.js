@@ -6,7 +6,8 @@ var tiles = require('../tiles')
 // tests/levels.js asks whether the board allows a route. This asks the harder
 // question: can the marble actually be steered along one? It plans a route, then
 // drives it with the same four keys a player has, under the real rules, on one
-// life, taking every coin before going anywhere near the exit.
+// life, taking every coin before going anywhere near the exit, and picking up
+// every letter on the way.
 //
 // It caught three levels that the reachability walk was happy with and no player
 // could ever have cleared: in each, the only way to a coin ran across the exit
@@ -288,6 +289,15 @@ function play(level) {
 	var last = leg(exit, 'the exit')
 	if (last) return last
 
+	// A letter is there to tell the player something, so a letter the route
+	// never crosses is no use to anyone. Pressure Run had one: the level could
+	// be cleared without going down the row its letter sat on.
+	var letters = (level.notes || []).length
+
+	if (game.notes.length < letters) {
+		return 'the route never crossed ' + (letters - game.notes.length) + ' of its ' + letters + ' letters'
+	}
+
 	return null
 }
 
@@ -297,7 +307,7 @@ function pick(key) {
 	return one
 }
 
-test('every level can be played through: all the coins, then the exit, on one life', function(t) {
+test('every level can be played through: every coin and letter, then the exit, on one life', function(t) {
 	levels.forEach(function(level, index) {
 		var name = 'level ' + (index + 1) + ' (' + level.name + ')'
 		t.equal(play(level), null, name + ' can be played through')
