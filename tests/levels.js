@@ -10,17 +10,27 @@ function forEachLevel(t, check) {
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
 
+function isWired(level, row, col) {
+	return (level.wiring || []).some(function(wire) {
+		return wire.row === row && wire.col === col
+	})
+}
+
 // A wired gate is a wall now, but a switch somewhere can open it, so the walk
 // below is allowed through it.
 function canBeOpened(level, row, col) {
-	var wired = (level.wiring || []).some(function(wire) {
-		return wire.row === row && wire.col === col
-	})
-
-	if (!wired) return false
+	if (!isWired(level, row, col)) return false
 
 	var partner = tiles.activatedPartner(level.tiles[row][col])
 	return partner !== null && !tiles.isWall(partner)
+}
+
+// Likewise a wired pit: a switch fills it in, so crossing it is not a death.
+function canBeFilled(level, row, col) {
+	if (!isWired(level, row, col)) return false
+
+	var partner = tiles.activatedPartner(level.tiles[row][col])
+	return partner !== null && !tiles.isDeadly(partner)
 }
 
 var STEPS = [
@@ -32,9 +42,9 @@ var STEPS = [
 
 // Walks the level from the start square, refusing to step on walls or into a
 // one-way arrow from the wrong side, and returns the squares it can get to.
-// Deadly squares are reachable on purpose: they are passable, they just cost you
-// a life.
-function reachableFromStart(level) {
+// Deadly squares count as reachable unless `avoidDeadly` is asked for: rolling
+// onto one is allowed, it just costs a life.
+function reachableFromStart(level, options) {
 	var width = level.tiles[0].length
 	var height = level.tiles.length
 	var seen = {}
@@ -57,6 +67,7 @@ function reachableFromStart(level) {
 			var tile = level.tiles[row][col]
 			if (tiles.isWall(tile) && !canBeOpened(level, row, col)) return
 			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+			if (options && options.avoidDeadly && tiles.isDeadly(tile) && !canBeFilled(level, row, col)) return
 
 			queue.push({ row: row, col: col })
 		})
@@ -108,6 +119,27 @@ test('every level has exactly one goal, and it can be reached', function(t) {
 
 		var reachable = reachableFromStart(level)
 		t.ok(reachable[goals[0].row + ',' + goals[0].col], name + ' can be finished')
+	})
+
+	t.end()
+})
+
+// Playing the levels through turned up a pit sitting across the only corridor to
+// the exit, which made that level impossible: dying does not get you past it.
+test('every level can be finished without dying', function(t) {
+	forEachLevel(t, function(level, name) {
+		var goal = null
+
+		level.tiles.forEach(function(row, rowIndex) {
+			row.forEach(function(tile, colIndex) {
+				if (tiles.isGoal(tile)) goal = { row: rowIndex, col: colIndex }
+			})
+		})
+
+		var safe = reachableFromStart(level, { avoidDeadly: true })
+
+		t.ok(safe[goal.row + ',' + goal.col],
+			name + ' has a route to the exit that never crosses a deadly square')
 	})
 
 	t.end()
