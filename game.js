@@ -15,11 +15,19 @@ var BALL_SPEED_THRESH = 0.1
 var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
-// How long a gate rests on each frame as it slides open or shut.
-var GATE_FRAME_MS = 55
+// How long a gate rests on each frame as it slides open or shut. The original
+// steps a door on every fourth animation tick, and a tick is the 40 ms its clock
+// counts per frame, so a door takes about half a second end to end.
+var GATE_FRAME_MS = 160
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
+
+// The exit only counts in the middle of its square. The original reads the
+// marble's position in sixteenths of a tile and asks for 5 to 9 on both axes, so
+// the marble can clip a corner of the exit and roll on.
+var GOAL_MIN_16TH = 5
+var GOAL_MAX_16TH = 9
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -383,14 +391,35 @@ module.exports = function createGame(levels, options) {
         }
     }
 
+    // In the middle of the square, in the sixteenths the original works in.
+    function overSquareCentre() {
+        var ix = Math.floor(ballIX())
+        var iy = Math.floor(ballIY())
+
+        return ix >= GOAL_MIN_16TH && ix <= GOAL_MAX_16TH &&
+               iy >= GOAL_MIN_16TH && iy <= GOAL_MAX_16TH
+    }
+
     function checkWhatBallIsOn() {
         var here = ballSquare()
+        var enteringNew = !standingOn || standingOn.row !== here.row || standingOn.col !== here.col
 
-        if (!standingOn || standingOn.row !== here.row || standingOn.col !== here.col) {
+        if (enteringNew) {
             if (standingOn) releaseSquare(standingOn)
             standingOn = { row: here.row, col: here.col }
             pressSquare(standingOn)
             here = ballSquare()
+        }
+
+        // A descending floor gives way one step per crossing, and the last step
+        // leaves an open pit, which the deadly check below then falls into.
+        if (enteringNew) {
+            var worn = tiles.wornBy(here.tile)
+
+            if (worn !== null) {
+                setTile(here.row, here.col, worn)
+                here = ballSquare()
+            }
         }
 
         if (tiles.isLetter(here.tile)) {
@@ -408,7 +437,7 @@ module.exports = function createGame(levels, options) {
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
         } else if (tiles.isDeadly(here.tile)) {
             die()
-        } else if (tiles.isGoal(here.tile)) {
+        } else if (tiles.isGoal(here.tile) && overSquareCentre()) {
             winLevel()
         }
     }

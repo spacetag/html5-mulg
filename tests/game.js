@@ -112,6 +112,94 @@ test('reaching the goal wins the level and stops the ball', function(t) {
 	t.end()
 })
 
+// The original asks for the middle of the exit square, in sixteenths of a tile,
+// so a marble can clip a corner of the exit and roll straight past it.
+var TILE_SIZE = createGame.TILE_SIZE
+
+// Puts the ball on a square at a given position within it, in the sixteenths of a
+// tile the original works in. `placeBall` below drops it in the middle instead.
+function placeBallWithin(game, row, col, ix, iy) {
+	game.ball.x = col * TILE_SIZE + ix * 2 - 14
+	game.ball.y = row * TILE_SIZE + iy * 2 - 14
+	game.ball.sx = 0
+	game.ball.sy = 0
+}
+
+test('clipping the corner of the exit does not win the level', function(t) {
+	var game = createGame([ corridor('one', [ F, F, G ]), corridor('two', [ F, F, G ]) ])
+
+	placeBallWithin(game, 1, 3, 2, 7)
+	game.tick(16)
+
+	t.equal(game.status, createGame.PLAYING, 'the edge of the exit is not the exit')
+
+	placeBallWithin(game, 1, 3, 12, 7)
+	game.tick(16)
+
+	t.equal(game.status, createGame.PLAYING, 'nor is the other edge')
+
+	placeBallWithin(game, 1, 3, 7, 7)
+	game.tick(16)
+
+	t.equal(game.status, createGame.LEVEL_WON, 'the middle of it is')
+	t.end()
+})
+
+/***** Descending floors *****/
+
+var DESC = tiles.TILE.DESCENDING_FLOOR
+
+// Rolls the ball off a square and back onto it, so the square counts a crossing.
+function crossAgain(game, row, col) {
+	placeBallWithin(game, row, col - 1, 7, 7)
+	game.tick(16)
+	placeBallWithin(game, row, col, 7, 7)
+	game.tick(16)
+}
+
+test('a descending floor gives way over three crossings, then is a pit', function(t) {
+	var level = corridor('one', [ F, DESC, G ])
+	var game = createGame([ level ])
+
+	placeBallWithin(game, 1, 2, 7, 7)
+	game.tick(16)
+
+	t.equal(game.grid[1][2], 86, 'the first crossing drops it a step')
+	t.equal(game.status, createGame.PLAYING, 'and is safe')
+
+	crossAgain(game, 1, 2)
+	t.equal(game.grid[1][2], 87, 'the second drops it again')
+	t.equal(game.status, createGame.PLAYING, 'and is still safe')
+
+	crossAgain(game, 1, 2)
+	t.equal(game.grid[1][2], tiles.TILE.EMPTY_PIT, 'the third leaves an open pit')
+	t.equal(game.status, createGame.DEAD, 'which the ball is standing in')
+	t.equal(game.lives, 2)
+	t.end()
+})
+
+test('standing still on a descending floor does not wear it out', function(t) {
+	var game = createGame([ corridor('one', [ F, DESC, G ]) ])
+
+	placeBallWithin(game, 1, 2, 7, 7)
+	roll(game, 'none', 40)
+
+	t.equal(game.grid[1][2], 86, 'one crossing, not forty')
+	t.end()
+})
+
+test('a level restart puts a descending floor back', function(t) {
+	var game = createGame([ corridor('one', [ F, DESC, G ]) ])
+
+	placeBallWithin(game, 1, 2, 7, 7)
+	game.tick(16)
+	t.equal(game.grid[1][2], 86)
+
+	game.advance()
+	t.equal(game.grid[1][2], DESC, 'the level is played on a copy')
+	t.end()
+})
+
 test('a won level does not tick on until the player presses on', function(t) {
 	var game = createGame([ corridor('one', [ F, F, G ]), corridor('two', [ F, F, G ]) ])
 
@@ -588,15 +676,16 @@ test('a gate that is still sliding open is still solid', function(t) {
 
 	rollUntil(game, 'right', function() { return game.channelOn(0) }, 400)
 
-	game.tick(60)
+	// A frame of the slide takes 160 ms, as it does in the original.
+	game.tick(160)
 	t.equal(game.grid[2][3], 12, 'one frame out')
 	t.ok(tiles.isWall(game.grid[2][3]), 'and the ball cannot get through it yet')
 
-	game.tick(60)
+	game.tick(160)
 	t.equal(game.grid[2][3], 13)
 	t.ok(tiles.isWall(game.grid[2][3]))
 
-	game.tick(60)
+	game.tick(160)
 	t.equal(game.grid[2][3], tiles.TILE.VGATE_OPEN, 'now it is open')
 	t.notOk(tiles.isWall(game.grid[2][3]), 'and only now can the ball pass')
 	t.end()

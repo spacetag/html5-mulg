@@ -44,11 +44,19 @@ var BALL_SPEED_THRESH = 0.1
 var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
-// How long a gate rests on each frame as it slides open or shut.
-var GATE_FRAME_MS = 55
+// How long a gate rests on each frame as it slides open or shut. The original
+// steps a door on every fourth animation tick, and a tick is the 40 ms its clock
+// counts per frame, so a door takes about half a second end to end.
+var GATE_FRAME_MS = 160
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
+
+// The exit only counts in the middle of its square. The original reads the
+// marble's position in sixteenths of a tile and asks for 5 to 9 on both axes, so
+// the marble can clip a corner of the exit and roll on.
+var GOAL_MIN_16TH = 5
+var GOAL_MAX_16TH = 9
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -412,14 +420,35 @@ module.exports = function createGame(levels, options) {
         }
     }
 
+    // In the middle of the square, in the sixteenths the original works in.
+    function overSquareCentre() {
+        var ix = Math.floor(ballIX())
+        var iy = Math.floor(ballIY())
+
+        return ix >= GOAL_MIN_16TH && ix <= GOAL_MAX_16TH &&
+               iy >= GOAL_MIN_16TH && iy <= GOAL_MAX_16TH
+    }
+
     function checkWhatBallIsOn() {
         var here = ballSquare()
+        var enteringNew = !standingOn || standingOn.row !== here.row || standingOn.col !== here.col
 
-        if (!standingOn || standingOn.row !== here.row || standingOn.col !== here.col) {
+        if (enteringNew) {
             if (standingOn) releaseSquare(standingOn)
             standingOn = { row: here.row, col: here.col }
             pressSquare(standingOn)
             here = ballSquare()
+        }
+
+        // A descending floor gives way one step per crossing, and the last step
+        // leaves an open pit, which the deadly check below then falls into.
+        if (enteringNew) {
+            var worn = tiles.wornBy(here.tile)
+
+            if (worn !== null) {
+                setTile(here.row, here.col, worn)
+                here = ballSquare()
+            }
         }
 
         if (tiles.isLetter(here.tile)) {
@@ -437,7 +466,7 @@ module.exports = function createGame(levels, options) {
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
         } else if (tiles.isDeadly(here.tile)) {
             die()
-        } else if (tiles.isGoal(here.tile)) {
+        } else if (tiles.isGoal(here.tile) && overSquareCentre()) {
             winLevel()
         }
     }
@@ -1963,6 +1992,9 @@ var TILE = {
     HGATE_OPEN: 18,
     FLOOR_SWITCH_UP: 88,   // hidden in the floor, held down by the ball
     FLOOR_SWITCH_DOWN: 89,
+    DESCENDING_FLOOR: 85,  // gives way a step at a time, three crossings in all
+    DESCENDING_FLOOR_2: 86,
+    DESCENDING_FLOOR_3: 87,
     DEATH_CUBE: 42,     // deadly on contact
     ICY_FLOOR: 43,      // no friction
     ONE_WAY_LEFT: 44,
@@ -2046,8 +2078,21 @@ classify(WALL, [
 classify(GOAL, [ TILE.TARGET_CROSS ])
 classify(LETTER, [ TILE.LETTER ])
 
-// 87 is a descending floor with no crossings left, so stepping on it is a fall.
-classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
+classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE ])
+
+// A descending floor drops one step each time the ball rolls onto it anew, and
+// the step past the last one is an open pit. The original does this by counting
+// the tile number up until it passes 87; the chain is spelled out here instead.
+var WEARS_TO = {}
+WEARS_TO[TILE.DESCENDING_FLOOR] = TILE.DESCENDING_FLOOR_2
+WEARS_TO[TILE.DESCENDING_FLOOR_2] = TILE.DESCENDING_FLOOR_3
+WEARS_TO[TILE.DESCENDING_FLOOR_3] = TILE.EMPTY_PIT
+
+// What a square becomes when the ball crosses it, or null if crossing leaves it
+// as it was.
+function wornBy(tileNumber) {
+    return WEARS_TO[tileNumber] === undefined ? null : WEARS_TO[tileNumber]
+}
 
 classify(COIN, [ TILE.COIN_1 ], { value: 1 })
 classify(COIN, [ TILE.COIN_5 ], { value: 5 })
@@ -2141,6 +2186,7 @@ module.exports = {
     coinValue: coinValue,
     oneWayDirection: oneWayDirection,
     surface: surface,
+    wornBy: wornBy,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
     frameSequence: frameSequence,

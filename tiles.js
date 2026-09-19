@@ -27,6 +27,9 @@ var TILE = {
     HGATE_OPEN: 18,
     FLOOR_SWITCH_UP: 88,   // hidden in the floor, held down by the ball
     FLOOR_SWITCH_DOWN: 89,
+    DESCENDING_FLOOR: 85,  // gives way a step at a time, three crossings in all
+    DESCENDING_FLOOR_2: 86,
+    DESCENDING_FLOOR_3: 87,
     DEATH_CUBE: 42,     // deadly on contact
     ICY_FLOOR: 43,      // no friction
     ONE_WAY_LEFT: 44,
@@ -110,8 +113,21 @@ classify(WALL, [
 classify(GOAL, [ TILE.TARGET_CROSS ])
 classify(LETTER, [ TILE.LETTER ])
 
-// 87 is a descending floor with no crossings left, so stepping on it is a fall.
-classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
+classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE ])
+
+// A descending floor drops one step each time the ball rolls onto it anew, and
+// the step past the last one is an open pit. The original does this by counting
+// the tile number up until it passes 87; the chain is spelled out here instead.
+var WEARS_TO = {}
+WEARS_TO[TILE.DESCENDING_FLOOR] = TILE.DESCENDING_FLOOR_2
+WEARS_TO[TILE.DESCENDING_FLOOR_2] = TILE.DESCENDING_FLOOR_3
+WEARS_TO[TILE.DESCENDING_FLOOR_3] = TILE.EMPTY_PIT
+
+// What a square becomes when the ball crosses it, or null if crossing leaves it
+// as it was.
+function wornBy(tileNumber) {
+    return WEARS_TO[tileNumber] === undefined ? null : WEARS_TO[tileNumber]
+}
 
 classify(COIN, [ TILE.COIN_1 ], { value: 1 })
 classify(COIN, [ TILE.COIN_5 ], { value: 5 })
@@ -205,6 +221,7 @@ module.exports = {
     coinValue: coinValue,
     oneWayDirection: oneWayDirection,
     surface: surface,
+    wornBy: wornBy,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
     frameSequence: frameSequence,

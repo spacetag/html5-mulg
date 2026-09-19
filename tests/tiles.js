@@ -73,3 +73,25 @@ test('a tile has exactly one kind', function(t) {
 
 	t.end()
 })
+
+test('a descending floor wears down to an open pit', function(t) {
+	t.equal(tiles.wornBy(tiles.TILE.DESCENDING_FLOOR), 86)
+	t.equal(tiles.wornBy(86), 87)
+	t.equal(tiles.wornBy(87), tiles.TILE.EMPTY_PIT, 'the last crossing leaves a pit')
+	t.end()
+})
+
+test('a descending floor is not deadly until it has given way', function(t) {
+	t.notOk(tiles.isDeadly(tiles.TILE.DESCENDING_FLOOR))
+	t.notOk(tiles.isDeadly(86))
+	t.notOk(tiles.isDeadly(87), 'the original turns 87 into a pit rather than killing on it')
+	t.ok(tiles.isDeadly(tiles.wornBy(87)))
+	t.end()
+})
+
+test('an ordinary square is not worn by being crossed', function(t) {
+	t.equal(tiles.wornBy(tiles.TILE.FLOOR), null)
+	t.equal(tiles.wornBy(tiles.TILE.ICY_FLOOR), null)
+	t.equal(tiles.wornBy(tiles.TILE.BLOCK), null)
+	t.end()
+})
