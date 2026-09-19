@@ -3,7 +3,8 @@
 // The original game keeps its levels in a PalmOS .pdb file: a 78-byte database
 // header, a record list, and then one record ("chunk") after another. Mulg uses
 // the first chunk for the game flags, the second for the author and the notes,
-// and one chunk per level after that.
+// a third for custom tile art in its newer database types, and one chunk per
+// level after that.
 //
 // The layout below is transcribed from MulgEd's Game.java (Ilan Tayary, GPLv2,
 // https://sourceforge.net/projects/mulged/), which loads and saves the same
@@ -31,6 +32,17 @@ var NOTES_TERMINATOR = 0x3230
 // Mulg's database type is one of these; anything else is not a level set.
 var TYPES = [ 'Levl', 'LevF', 'LevN', 'LevP' ]
 var CREATOR = 'Mulg'
+
+// The newer types carry one more record before the levels: the set's custom tile
+// art. mulg.c decides it the same way, comparing the type as a four-byte value:
+//
+//   if((type >= 'LevP')&&(type != 'Levl'))   /* an additional record */
+//
+// Comparing the four characters in order gives the same answer, so 'LevP' has
+// one and 'Levl', 'LevF' and 'LevN' do not.
+function hasCustomTileRecord(type) {
+    return type >= 'LevP' && type !== 'Levl'
+}
 
 function readUInt16(buffer, at) {
     return (buffer[at] << 8) | buffer[at + 1]
@@ -157,8 +169,13 @@ function read(buffer) {
 
     var ranges = recordRanges(buffer)
 
-    if (ranges.length < 2) {
-        throw new Error('a Mulg database has a flags chunk and a notes chunk before its levels')
+    // The high scores, then the author and notes, then the custom tiles if this
+    // type has them, and the levels after that.
+    var customTiles = hasCustomTileRecord(type)
+    var firstLevel = customTiles ? 3 : 2
+
+    if (ranges.length < firstLevel) {
+        throw new Error('a Mulg database has ' + firstLevel + ' records before its levels')
     }
 
     // The flags chunk is a short we do not use and then the debug flag.
@@ -174,8 +191,9 @@ function read(buffer) {
         author: notes.author,
         type: type,
         debug: debug,
+        customTiles: customTiles,
         notes: notes.notes,
-        levels: ranges.slice(2).map(function(range) {
+        levels: ranges.slice(firstLevel).map(function(range) {
             return readLevel(buffer, range)
         })
     }
@@ -183,6 +201,7 @@ function read(buffer) {
 
 module.exports = {
     read: read,
+    hasCustomTileRecord: hasCustomTileRecord,
     TYPES: TYPES,
     CREATOR: CREATOR
 }

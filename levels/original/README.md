@@ -17,9 +17,11 @@ author and the notes the letters carry, and then one chunk per level.
 and nothing here should be - if a level looks wrong, the conversion is wrong.
 
 The same tree carries two more databases this port does not include: `test.pdb`,
-the debug set, whose first record is not a playable level, and `Barking.pdb`, a
-set by Jim Cromwell rather than part of the game. Both convert fine if you drop
-them in this directory.
+the debug set, and `Barking.pdb`, a set by Jim Cromwell rather than part of the
+game. Both convert fine if you drop them in this directory. `test.pdb` is a
+`LevP` database, the newer type that carries a record of custom tile art before
+its levels; `tools/mulg-pdb.js` skips that record the way `mulg.c` does, but the
+port draws such a set with the standard tiles.
 
 Mulg II is copyright 1998-2001 Till Harbaum, Pat Kane and Tomoto Shimizu, and is
 distributed under the GNU General Public License version 2 or later, which is
