@@ -1,165 +1,95 @@
+// Wiring: keyboard in, board and HUD out. The rules live in game.js.
+
 var frameLoop = require('frame-loop')
-var collisionChecker = require('./collision-checking')
+var createBoard = require('./render')
+var createGame = require('./game')
+var levels = require('./levels')
 
-var FPS_MULTIPLIER = 3 // based on 20fps
-var NUM_OF_ROWS = 9
-var NUM_OF_COLS = 10
-var TILE_SIZE = 32
-var BALL = document.getElementById("ball")
+var TILE_SIZE = createGame.TILE_SIZE
+var FPS_MULTIPLIER = createGame.FPS_MULTIPLIER
+
 // http://stackoverflow.com/questions/5597060/detecting-arrow-key-presses-in-javascript
-var LEFT_KEY = 37
-var UP_KEY = 38
-var RIGHT_KEY = 39
-var DOWN_KEY = 40
-var OFFSET_X = 14
-var OFFSET_Y = 14
+var KEY_TO_DIRECTION = {
+    37: 'left',
+    38: 'up',
+    39: 'right',
+    40: 'down'
+}
+var RESTART_KEY = 82 // r
 
-var BALL_SPEED_DECAY_ON = 0.99
-var BALL_SPEED_DECAY_OFF = 0.9
-var BALL_SPEED_THRESH = 0.1
+var game = createGame(levels)
+var board = createBoard(document.getElementById("board"), TILE_SIZE)
 
-var ballx = 0
-var bally = 0
-var ballsx = 0
-var ballsy = 0
-
-var REGISTER_KEYPRESSES_EVERY_MS = 50
-
-function getTile(row, col) {
-    // https://developer.mozilla.org/en-US/docs/Web/API/Document/getElementById
-    return document.getElementById(row + "_" + col)
+var hud = {
+    level: document.getElementById("hud_level"),
+    time: document.getElementById("hud_time"),
+    score: document.getElementById("hud_score"),
+    lives: document.getElementById("hud_lives"),
+    message: document.getElementById("message")
 }
 
-function setTile(row, col, tileNum) {
-    var numOfZeros = 3 - (tileNum + "").length
-    var leadingZeros = ""
-    for (var i = 0; i < numOfZeros; i++) {
-        leadingZeros += "0"
-    }
-    // http://www.w3schools.com/jsref/prop_img_src.asp
-    getTile(row, col).src = "tiles/tile" + leadingZeros + tileNum + ".gif"
+function formatTime(ms) {
+    var totalSeconds = Math.floor(ms / 1000)
+    var minutes = Math.floor(totalSeconds / 60)
+    var seconds = totalSeconds % 60
+    return minutes + ":" + ("0" + seconds).slice(-2)
 }
 
-function setBallPos(x, y) {
-    // http://www.w3schools.com/jsref/prop_style_top.asp
-    // http://stackoverflow.com/questions/2214387/setting-top-and-left-css-attributes
-    BALL.style.left = ballx = x;
-    BALL.style.top = bally = y;
+function drawLevel() {
+    board.draw(game.grid)
+    hud.level.textContent = (game.levelIndex + 1) + "/" + levels.length + " " + game.level.name
 }
 
-function initBallPos(row, col) {
-    setBallPos(col * TILE_SIZE, row * TILE_SIZE);
+function drawHud() {
+    hud.time.textContent = formatTime(game.elapsedMs)
+    hud.score.textContent = game.score
+    hud.lives.textContent = game.lives
+    hud.message.textContent = game.message
+    hud.message.style.visibility = game.message ? "visible" : "hidden"
 }
 
-var level = [
-    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
-    [6, 4, 4, 4, 4, 4, 4, 4, 4, 6],
-    [6, 4, 6, 6, 6, 6, 6, 4, 6, 6],
-    [6, 4, 6, 4, 4, 4, 6, 4, 7, 6],
-    [6, 4, 4, 4, 6, 4, 6, 6, 4, 6],
-    [6, 6, 6, 6, 6, 4, 4, 6, 4, 6],
-    [6, 7, 4, 4, 6, 6, 4, 6, 4, 6],
-    [6, -1, 6, 4, 4, 4, 4, 6, 5, 6],
-    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
-];
-
-for(var i = 0; i < NUM_OF_ROWS; i++) {
-    for(var j = 0; j < NUM_OF_COLS; j++) {
-        if (level[i][j] == -1) {
-            initBallPos(i, j)
-            setTile(i, j, 4)
-        } else {
-            setTile(i, j, level[i][j])
-        }
-    }
-}
-
-/***** Movement *****/
-// http://stackoverflow.com/questions/5597060/detecting-arrow-key-presses-in-javascript
+/***** Input *****/
 // http://stackoverflow.com/questions/5203407/javascript-multiple-keys-pressed-at-once
-var keysPressed = {37: 0, 38: 0, 39: 0, 40: 0}
 
 document.onkeydown = function(e) {
     e = e || window.event
-    // dirs = {38: [-1, 0], 40: [1, 0], 37: [0, -1], 39: [0, 1]}
-    keysPressed[e.keyCode] = 1;
+    var direction = KEY_TO_DIRECTION[e.keyCode]
+
+    if (direction) {
+        game.input[direction] = true
+        e.preventDefault()
+    }
 }
 
 document.onkeyup = function(e) {
     e = e || window.event
-    keysPressed[e.keyCode] = 0;
-}
+    var direction = KEY_TO_DIRECTION[e.keyCode]
 
-function getBallRow() {
-    return (bally + OFFSET_Y) / TILE_SIZE
-}
+    if (direction) game.input[direction] = false
 
-function getBallCol() {
-    return (ballx + OFFSET_X) / TILE_SIZE
-}
-
-function getBallIX() {
-    return (ballx + OFFSET_X) % TILE_SIZE * 16 / TILE_SIZE
-}
-
-function getBallIY() {
-    return (bally + OFFSET_Y) % TILE_SIZE * 16 / TILE_SIZE
-}
-
-var checkForCollision = collisionChecker(level, [ 6 ])
-
-
-function updateBallPos(ballSpeedUpdatingTick) {
-    if (ballSpeedUpdatingTick) {
-        var extrax = -1 * keysPressed[LEFT_KEY] + keysPressed[RIGHT_KEY]
-        var extray = -1 * keysPressed[UP_KEY]   + keysPressed[DOWN_KEY]
-        ballsx = (ballsx + extrax) * (extrax ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
-        ballsy = (ballsy + extray) * (extray ? BALL_SPEED_DECAY_ON : BALL_SPEED_DECAY_OFF)
+    if (e.keyCode === RESTART_KEY) {
+        game.advance()
+        drawLevel()
+        drawHud()
     }
-
-    if ((ballsx > 0 && getBallIX() > 9 && checkForCollision(getBallRow(), getBallCol() + 1)) ||
-        (ballsx < 0 && getBallIX() < 5 && checkForCollision(getBallRow(), getBallCol() - 1))) {
-        ballsx = -ballsx
-    }
-
-    if ((ballsy > 0 && getBallIY() > 9 && checkForCollision(getBallRow() + 1, getBallCol())) ||
-        (ballsy < 0 && getBallIY() < 5 && checkForCollision(getBallRow() - 1, getBallCol()))) {
-        ballsy = -ballsy
-    }
-
-    // http://www.w3schools.com/jsref/jsref_abs.asp
-    if (Math.abs(ballsx) < BALL_SPEED_THRESH) ballsx = 0;
-    if (Math.abs(ballsy) < BALL_SPEED_THRESH) ballsy = 0;
-
-    // console.log(ballsx, ballsy);
-    setBallPos(ballx + ballsx / FPS_MULTIPLIER, bally + ballsy / FPS_MULTIPLIER)
 }
 
 /***** Main Game Loop *****/
 
-function keypressToTickSynchronizer(registerKeypressesEveryMs) {
-
-    var elapsedSinceLastTick = 0
-
-    return function shouldUpdateMomentumThisTick(elapsedMs) {
-        var shouldUpdateMomentum = false
-
-        elapsedSinceLastTick += elapsedMs
-
-        if (elapsedSinceLastTick > registerKeypressesEveryMs) {
-            elapsedSinceLastTick = elapsedSinceLastTick - registerKeypressesEveryMs
-            shouldUpdateMomentum = true
-        }
-
-        return shouldUpdateMomentum
-    }
-}
-
-var shouldUpdateMomentumThisTick = keypressToTickSynchronizer(REGISTER_KEYPRESSES_EVERY_MS)
-
 function main(elapsedMsSinceLastTick) {
-    updateBallPos(shouldUpdateMomentumThisTick(elapsedMsSinceLastTick))
+    game.tick(elapsedMsSinceLastTick)
+
+    game.consumeTileChanges().forEach(function(change) {
+        board.setTile(change.row, change.col, change.tile)
+    })
+
+    board.setBallPos(game.ball.x, game.ball.y)
+    drawHud()
 }
+
+drawLevel()
+drawHud()
+board.setBallPos(game.ball.x, game.ball.y)
 
 var engine = frameLoop({
     fps: 20 * FPS_MULTIPLIER

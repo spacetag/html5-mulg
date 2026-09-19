@@ -3,6 +3,11 @@ An HTML5 version of Till Harbaum's [classic Palm OS game](http://www.harbaum.org
 
 You can play it [here](https://spacetag.github.io/html5-mulg/).
 
+See [FEATURES.md](FEATURES.md) for a comparison of what the original Palm game does
+versus what this port does today, and what is still missing, and
+[docs/original-tiles.md](docs/original-tiles.md) for what each of the 147 original
+tiles actually is.
+
 # Todos
 #### Level display
 - [x] Decide if you want to use Canvas or CSS
@@ -13,8 +18,8 @@ You can play it [here](https://spacetag.github.io/html5-mulg/).
   - [ ] Be able to navigate through the screens (test) with arrow keys
   - [ ] Make sure screens wrap if appropriate
 - [ ] Get actual level file read in and displayed
-  - [ ] Create JS Object/JS Array/JSON String level format
-  - [ ] Be able to read in JS Object/JS Array/JSON String levelsets
+  - [x] Create JS Object/JS Array/JSON String level format
+  - [x] Be able to read in JS Object/JS Array/JSON String levelsets
   - [ ] Be able to read in .pdb format levelsets
   - [ ] Be able to read in .lev format levelsets
 
@@ -32,6 +37,7 @@ You can play it [here](https://spacetag.github.io/html5-mulg/).
 
 #### Game mechanics
 - [ ] Make timer work (with appropriately scaled time from original Mulg running on Palm III emulator)
+  - [x] Show a per-level clock
 - [ ] Create highscore table
 - [ ] Create level selector
 - [ ] Create game pack selector

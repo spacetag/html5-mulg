@@ -1,12 +1,49 @@
+body {
+    background: #222;
+    color: #eee;
+    font-family: sans-serif;
+    margin: 0;
+    padding: 16px;
+}
+
+#game {
+    width: 320px;
+    margin: 0 auto;
+}
+
+#hud {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding-bottom: 6px;
+}
+
+.hud_item b {
+    color: #ffd700;
+}
+
+#board {
+    /* http://stackoverflow.com/questions/10487292/position-absolute-but-relative-to-parent */
+    position: relative;
+}
+
+/* http://stackoverflow.com/questions/17837106/space-between-td-why-and-how-can-i-remove */
+#board table {
+    border-collapse: collapse;
+}
+
 /* http://stackoverflow.com/questions/1150163/stretch-and-scale-a-css-image-in-the-background-with-css-only */
 .mulg_tile {
     /* http://www.zenphoto.org/support/topic.php?id=1000239 */
     width: 100%;
+    display: block;
+    image-rendering: pixelated;
 }
 
-td {
+#board td {
     height: 32px;
     width: 32px;
+    padding: 0;
 }
 
 #ball {
@@ -14,6 +51,21 @@ td {
     position: absolute;
     height: 32px;
     width: 32px;
-    /*top: 10px;*/
-    /*left: 10px;*/
+    left: 0;
+    top: 0;
+    image-rendering: pixelated;
+}
+
+#message {
+    min-height: 1.2em;
+    margin: 10px 0 0;
+    font-size: 14px;
+    color: #ffd700;
+    visibility: hidden;
+}
+
+#help {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #999;
 }
