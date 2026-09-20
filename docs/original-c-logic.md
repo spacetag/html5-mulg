@@ -174,9 +174,22 @@ square touched without being entered, always passes.
 well — `OWR: return (dir==4)||(dir==5)||(dir==6)` and so on, with the originals
 left commented out beside them. The original is the stricter rule above.)
 
+The diagonal half of that difference is not theoretical. Measured across all 63
+levels — the fifteen hand-made ones and the 48 converted from the original sets —
+a route planner never meets it at all: it does not route a marble against an
+arrow, so all 104 arrow entries agree under either reading. Under random input it
+fires, and only ever diagonally. **"In the Basement", the up arrow at row 3
+column 20**, disagrees on 21 of its 27 arrow entries, every one of them a marble
+arriving on the (1,-1) diagonal, which the original refuses and the ODROID
+rewrite admits. "Stormy Monday" does the same eight times at its left arrow at
+12,7, and "Danger, explosives!" once; both of those are still waiting on
+mechanics this port does not have. Neither reading makes "In the Basement"
+unplayable, so the level is not the evidence — the square is.
+
 Note what is *not* there either: nothing stops a marble already standing on a
-one-way from leaving in any direction. This port's rule that zeroes the marble's
-speed when it tries to turn back on a one-way square is an invention.
+one-way from leaving in any direction. The rule this port used to have, zeroing
+the marble's speed when it tried to turn back on a one-way square, was an
+invention and is gone.
 
 **A closed door kills you when it closes on you, not when you hit it.**
 `if(dir==0) game_end(LOOSE); return 1;` (1114). Rolling into a shut door bounces;
