@@ -24,8 +24,10 @@ That is the pristine original, and it is what the line numbers below refer to.
 Relevant files: `mulg.c` (the engine), `level.h` and `tiles.h` (the tile
 constants, which agree with `docs/original-tiles.md`), `hole.c` (the marble's
 overlap table), `scarab.c` (the beetle), `makelevel.y` and `makelevel.txt` (the
-level compiler and its documented input language), `mulg.lev` (the shipped levels
-as source), and three level databases: `mulg.pdb`, `Barking.pdb` and `test.pdb`.
+level compiler and its documented input language), and the shipped levels both
+ways round: `mulg.lev`, `mulg2.lev`, `mulg3.lev` and `test.lev` as compiler
+source, and `mulg.pdb`, `mulg2.pdb`, `mulg3.pdb`, `test.pdb` and `Barking.pdb` as
+databases. Where a `.lev` and its `.pdb` disagree, the database is what shipped.
 
 **A second copy exists, and it is not the same.** The ODROID GO port
 (`github.com/johannesbehr/mulg-go`, engine in `components/mulg/`) vendors the
@@ -292,6 +294,13 @@ port's `GATE_FRAME_MS` of 55 is about three times too fast.
 - A level is 32 bytes of name, then width and height bytes, then two bytes per
   cell, **attribute first and tile second**, row-major (`init_level`, 614).
   Maximum 37×33. No time limit is stored.
+- A database holds one record of best times and one of documents before the
+  levels, so level *n* is record `2 + n` — except in the newer types, where a
+  record of custom tiles sits at index 2 and level *n* is record `3 + n`. The test
+  for which is `if((type >= 'LevP') && (type != 'Levl'))`, and the level count is
+  `DmNumRecords - 3` rather than `- 2` (`open_database`, 410–425; the read is at
+  577). `Levl` and `LevF` databases, which is what the shipped sets are, take the
+  shorter form.
 - Leaving the board wraps, in pages of 9×8 tiles overlapping by one (1584).
 
 ## What this port still gets wrong
