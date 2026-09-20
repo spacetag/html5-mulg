@@ -378,6 +378,20 @@ test('a one-way tile refuses the ball crossing it sideways', function(t) {
 	t.end()
 })
 
+// The same rule on the other axis: an arrow pointing at a wall cannot be got
+// onto at all, from either side. Under the loose rule a ball coming along the
+// corridor rolls straight onto it, which is how a board full of arrows stops
+// being a puzzle.
+test('a one-way pointing at a wall cannot be entered from beside it', function(t) {
+	var U = tiles.TILE.ONE_WAY_UP
+	var game = createGame([ corridor('one', [ F, F, U ]) ])
+
+	roll(game, 'right', 300)
+
+	t.equal(game.ballSquare().col, 2, 'the ball stopped short of the arrow')
+	t.end()
+})
+
 var SWITCH = tiles.TILE.SWITCH_LOW
 var FLOOR_SWITCH = tiles.TILE.FLOOR_SWITCH_UP
 var VGATE = tiles.TILE.VGATE_CLOSED
