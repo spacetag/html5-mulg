@@ -58,6 +58,11 @@ var FLOOR = 0x04
 // Flags the original hangs on an otherwise ordinary tile. level.h names them.
 var FLOOR_FLAGS = {
     0xff: null,                 // the starting point, which is not a mechanic
+    // A floor marked to vanish is not the same square as tile 85. mulg.c:1747
+    // counts the tile number up and catches it twice, so a marked floor spends
+    // its first crossing turning into 85 and lasts four crossings where 85
+    // lasts three. They are named apart here so that implementing one does not
+    // look like implementing the other.
     0x20: 'vanishing floor',
     0x40: 'un-reverser',
     0x80: 'reverser'
@@ -107,7 +112,7 @@ var MECHANICS = [
     { name: 'matches', tiles: [ 0x33, 0x34 ] },
     { name: 'grooves', tiles: range(0x35, 0x44) },
     { name: 'ramparts', tiles: range(0x45, 0x54) },
-    { name: 'vanishing floor', tiles: [ 0x55, 0x56, 0x57 ] },
+    { name: 'descending floor', tiles: [ 0x55, 0x56, 0x57 ] },
     { name: 'flip tiles', tiles: [ 0x5a, 0x5b ] },
     { name: 'smiley', tiles: [ 0x5e ] },
     { name: 'parachute', tiles: [ 0x5f ] },

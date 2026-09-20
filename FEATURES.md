@@ -91,7 +91,8 @@ mechanic, "unlocks alone" the levels that need nothing else besides it.
 | Switch pit | 6 | 0 |
 | Dice | 5 | 0 |
 | Memorize cubes | 5 | 1 |
-| Vanishing floor | 4 | 0 |
+| Descending floor | 3 | 0 |
+| Vanishing floor (the marked form) | 1 | 0 |
 | Ventilator | 3 | 0 |
 | Parachute | 3 | 0 |
 | Grooves, ramparts, holes, bumps | 2 each | 0 |
@@ -102,6 +103,11 @@ mechanic, "unlocks alone" the levels that need nothing else besides it.
 
 Boxes are the single biggest win: they appear in 19 of the 48 levels and three of
 those need nothing else. Keys and locks are second, but never on their own.
+
+The two vanishing floors are counted apart on purpose. Tiles 85-87 give way over
+three crossings; a plain floor square *marked* to vanish spends its first crossing
+becoming tile 85, so it lasts four (`mulg.c:1747` does both in the same two lines,
+which is easy to read as one rule). Only Alcatraz uses the marked form.
 
 ### 2.3 Tile behaviours
 

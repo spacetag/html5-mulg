@@ -1141,7 +1141,7 @@ module.exports = [
         levels: [
             {
                 name: "Scarab",
-                needs: ["boxes","scarab beetles","vanishing floor"],
+                needs: ["boxes","descending floor","scarab beetles"],
                 start: { row: 2, col: 2 },
                 tiles: [
                     [   W,   W,   W,   W,   W,   W,   W,   W,   W,   W ],
@@ -1400,7 +1400,7 @@ module.exports = [
             },
             {
                 name: "Block Bugs",
-                needs: ["boxes","scarab beetles","switch pit","vanishing floor"],
+                needs: ["boxes","descending floor","scarab beetles","switch pit"],
                 start: { row: 2, col: 1 },
                 tiles: [
                     [   P,   P,   P,   P,   P,   P,   P,   P,   G,   P ],
@@ -1500,7 +1500,7 @@ module.exports = [
             },
             {
                 name: "Bug House",
-                needs: ["keys and locks","scarab beetles","vanishing floor"],
+                needs: ["descending floor","keys and locks","scarab beetles"],
                 start: { row: 7, col: 3 },
                 tiles: [
                     [   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W,   W ],
