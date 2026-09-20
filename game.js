@@ -188,23 +188,10 @@ module.exports = function createGame(levels, options) {
 
         if (tiles.isWall(tileNumber)) return true
 
-        var oneWay = tiles.oneWayDirection(tileNumber)
-
         // A one-way only turns the ball away as it rolls in; once the ball is on
-        // it, it is free to leave in any direction. Rolling in, though, the arrow
-        // admits exactly one heading and refuses every other, diagonals included:
-        // mulg.c:1127 is `return(!((dir==1)||(dir==0)))` for a right-pointing
-        // arrow, a whitelist of the one heading plus dir 0, not a blacklist of the
-        // heading coming back at it. (The copy vendored in the ODROID port
-        // replaces these four lines with ranges that let the diagonals through.
-        // That is the porter's change, and the original lines sit commented out
-        // beneath it.)
-        if (oneWay === null || !entering) return false
-
-        if (oneWay === 'left') return !(entering.x === -1 && entering.y === 0)
-        if (oneWay === 'right') return !(entering.x === 1 && entering.y === 0)
-        if (oneWay === 'up') return !(entering.x === 0 && entering.y === -1)
-        return !(entering.x === 0 && entering.y === 1)
+        // it, it is free to leave in any direction. The rule itself is in
+        // tiles.oneWayAdmits, where it can be checked heading by heading.
+        return !tiles.oneWayAdmits(tileNumber, entering)
     }
 
     /***** Channels *****/

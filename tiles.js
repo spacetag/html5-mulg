@@ -153,6 +153,29 @@ function oneWayDirection(tileNumber) {
     return info.kind === ONE_WAY ? info.direction : null
 }
 
+// Whether a square lets a ball roll in from a given heading. mulg.c's check_tile
+// (lines 1126-1137) whitelists the single heading an arrow points in, plus its
+// dir 0, and refuses the other seven: both perpendiculars and all four diagonals.
+// `entering` is the heading as a pair of -1/0/1 components, or null when the ball
+// is already overlapping the square rather than rolling into it.
+//
+// The rule lives here, on its own, because it is the one part of the collision
+// model that is easy to get subtly wrong: the copy of mulg.c vendored in the
+// ODROID port replaces those four lines with direction ranges that let the
+// diagonals through, so a blacklist reading of it looks right and plays wrong.
+function oneWayAdmits(tileNumber, entering) {
+    var arrow = oneWayDirection(tileNumber)
+
+    if (arrow === null) return true
+    if (!entering) return true
+
+    if (arrow === 'left') return entering.x === -1 && entering.y === 0
+    if (arrow === 'right') return entering.x === 1 && entering.y === 0
+    if (arrow === 'up') return entering.x === 0 && entering.y === -1
+
+    return entering.x === 0 && entering.y === 1
+}
+
 function surface(tileNumber) {
     return SURFACES[tileNumber] || FLOOR_SURFACE
 }
@@ -218,6 +241,7 @@ module.exports = {
     isCoin: isCoin,
     coinValue: coinValue,
     oneWayDirection: oneWayDirection,
+    oneWayAdmits: oneWayAdmits,
     surface: surface,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
