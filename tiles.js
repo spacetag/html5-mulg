@@ -25,8 +25,11 @@ var TILE = {
     VGATE_OPEN: 14,
     HGATE_CLOSED: 15,
     HGATE_OPEN: 18,
-    FLOOR_SWITCH_UP: 88,   // hidden in the floor, held down by the ball
-    FLOOR_SWITCH_DOWN: 89,
+    FLOOR_SWITCH_UP: 88,   // hidden in the floor: armed, waiting to be rolled on
+    FLOOR_SWITCH_DOWN: 89, // the same button, spent
+    DESCENDING_FLOOR: 85,  // gives way a step at a time, three crossings in all
+    DESCENDING_FLOOR_2: 86,
+    DESCENDING_FLOOR_3: 87,
     DEATH_CUBE: 42,     // deadly on contact
     ICY_FLOOR: 43,      // no friction
     ONE_WAY_LEFT: 44,
@@ -59,10 +62,23 @@ var FRAME_SEQUENCES = [
     [ TILE.HGATE_CLOSED, 16, 17, TILE.HGATE_OPEN ]
 ]
 
-// Switches show their own channel's state, so they have two forms as well.
+// Switches have two forms, and how they are thrown differs.
+//
+// A wall switch is solid, so the ball throws it by bumping into it, and its two
+// forms show which way its channel is set.
+//
+// A floor button is thrown by rolling onto it, and its two forms are not the
+// channel's state but the button's own: 88 is armed and 89 is spent. Throwing a
+// button spends it and re-arms every other button on the same channel, so a lone
+// button works once and a pair of them toggle back and forth. That is what the
+// original does, and it is not the same as holding the channel on while the ball
+// sits on the square.
+var BUMPED = 'bumped'
+var ROLLED_ONTO = 'rolled-onto'
+
 var SWITCH_FORMS = [
-    { off: TILE.SWITCH_LOW, on: TILE.SWITCH_HIGH, momentary: false },
-    { off: TILE.FLOOR_SWITCH_UP, on: TILE.FLOOR_SWITCH_DOWN, momentary: true }
+    { off: TILE.SWITCH_LOW, on: TILE.SWITCH_HIGH, thrownBy: BUMPED },
+    { off: TILE.FLOOR_SWITCH_UP, on: TILE.FLOOR_SWITCH_DOWN, thrownBy: ROLLED_ONTO }
 ]
 
 // How a square treats the ball rolling over it. `decayOn` applies while the
@@ -110,8 +126,21 @@ classify(WALL, [
 classify(GOAL, [ TILE.TARGET_CROSS ])
 classify(LETTER, [ TILE.LETTER ])
 
-// 87 is a descending floor with no crossings left, so stepping on it is a fall.
-classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE, 87 ])
+classify(DEADLY, [ TILE.EMPTY_PIT, TILE.DEATH_CUBE ])
+
+// A descending floor drops one step each time the ball rolls onto it anew, and
+// the step past the last one is an open pit. The original does this by counting
+// the tile number up until it passes 87; the chain is spelled out here instead.
+var WEARS_TO = {}
+WEARS_TO[TILE.DESCENDING_FLOOR] = TILE.DESCENDING_FLOOR_2
+WEARS_TO[TILE.DESCENDING_FLOOR_2] = TILE.DESCENDING_FLOOR_3
+WEARS_TO[TILE.DESCENDING_FLOOR_3] = TILE.EMPTY_PIT
+
+// What a square becomes when the ball crosses it, or null if crossing leaves it
+// as it was.
+function wornBy(tileNumber) {
+    return WEARS_TO[tileNumber] === undefined ? null : WEARS_TO[tileNumber]
+}
 
 classify(COIN, [ TILE.COIN_1 ], { value: 1 })
 classify(COIN, [ TILE.COIN_5 ], { value: 5 })
@@ -176,8 +205,8 @@ function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
 }
 
-// The pair of forms for a switch, or null if this tile is not one. A momentary
-// switch is held on only while the ball is on it; the other kind toggles.
+// The pair of forms for a switch, or null if this tile is not one. `thrownBy`
+// says how the ball works it: by bumping into it, or by rolling onto it.
 function switchForms(tileNumber) {
     for (var i = 0; i < SWITCH_FORMS.length; i++) {
         if (SWITCH_FORMS[i].off === tileNumber || SWITCH_FORMS[i].on === tileNumber) {
@@ -205,10 +234,13 @@ module.exports = {
     coinValue: coinValue,
     oneWayDirection: oneWayDirection,
     surface: surface,
+    wornBy: wornBy,
     activatedPartner: activatedPartner,
     switchForms: switchForms,
     frameSequence: frameSequence,
     isLetter: isLetter,
     LETTER: LETTER,
+    BUMPED: BUMPED,
+    ROLLED_ONTO: ROLLED_ONTO,
     CHANNELS: 32
 }

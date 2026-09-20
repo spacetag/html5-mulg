@@ -38,14 +38,29 @@ var TICKS_PER_SQUARE = 900
 function planner(level) {
 	var height = level.tiles.length
 	var width = level.tiles[0].length
-	var channelAt = {};
+	var channelAt = {}
+	// Floor buttons carry their own armed-or-spent state, so they are tracked by
+	// index in a second bitmask alongside the channels.
+	var buttons = []
+	var buttonAt = {};
 
 	(level.wiring || []).forEach(function(wire) {
 		channelAt[wire.row + ',' + wire.col] = wire.channel
+
+		var forms = tiles.switchForms(level.tiles[wire.row][wire.col])
+
+		if (forms && forms.thrownBy === tiles.ROLLED_ONTO) {
+			buttonAt[wire.row + ',' + wire.col] = buttons.length
+			buttons.push({ row: wire.row, col: wire.col, channel: wire.channel, forms: forms })
+		}
 	})
 
-	function tileAt(row, col, channels) {
+	function tileAt(row, col, channels, spent) {
 		var base = level.tiles[row][col]
+		var button = buttonAt[row + ',' + col]
+
+		if (button !== undefined) return (spent & (1 << button)) ? buttons[button].forms.on : base
+
 		var channel = channelAt[row + ',' + col]
 
 		if (channel === undefined || (channels & (1 << channel)) === 0) return base
@@ -55,6 +70,28 @@ function planner(level) {
 
 		var partner = tiles.activatedPartner(base)
 		return partner === null ? base : partner
+	}
+
+	// Rolling onto an armed button throws its channel, spends it, and re-arms
+	// every other button on that channel.
+	function afterRollingOnto(at) {
+		var button = buttonAt[at.row + ',' + at.col]
+
+		if (button === undefined || (at.spent & (1 << button))) return at
+
+		var spent = at.spent
+
+		buttons.forEach(function(other, index) {
+			if (other.channel !== buttons[button].channel) return
+			spent = index === button ? (spent | (1 << index)) : (spent & ~(1 << index))
+		})
+
+		return {
+			row: at.row,
+			col: at.col,
+			channels: at.channels ^ (1 << buttons[button].channel),
+			spent: spent
+		}
 	}
 
 	// The shortest run of moves from here to any square in `targets`, keeping off
@@ -69,43 +106,40 @@ function planner(level) {
 		while (queue.length) {
 			var node = queue.shift()
 			var at = node.at
-			var key = at.row + ',' + at.col + ',' + at.channels
+			var key = at.row + ',' + at.col + ',' + at.channels + ',' + at.spent
 
 			if (seen[key]) continue
 			seen[key] = true
 
 			if (targets[at.row + ',' + at.col] && node.moves.length) return node.moves
 
-			var here = tileAt(at.row, at.col, at.channels)
+			var here = tileAt(at.row, at.col, at.channels, at.spent)
 			if (tiles.isDeadly(here)) continue
 
-			// A floor switch is held down for as long as the ball is on this square.
+			// Arriving here may have thrown a button, which stays thrown.
+			at = afterRollingOnto(at)
 			var held = at.channels
-			var switchHere = tiles.switchForms(here)
-			var channelHere = channelAt[at.row + ',' + at.col]
 
-			if (switchHere && switchHere.momentary && channelHere !== undefined) {
-				held = held | (1 << channelHere)
-			}
-
-			var leaving = tiles.oneWayDirection(here)
 
 			STEPS.forEach(function(step) {
 				var row = at.row + step.row
 				var col = at.col + step.col
 
 				if (row < 0 || col < 0 || row >= height || col >= width) return
-				if (leaving !== null && OPPOSITE[leaving] === step.direction) return
-
-				var tile = tileAt(row, col, held)
+				var tile = tileAt(row, col, held, at.spent)
 
 				if (tiles.isWall(tile)) {
 					var forms = tiles.switchForms(tile)
 					var channel = channelAt[row + ',' + col]
 
-					if (forms && !forms.momentary && channel !== undefined) {
+					if (forms && forms.thrownBy === tiles.BUMPED && channel !== undefined) {
 						queue.push({
-							at: { row: at.row, col: at.col, channels: at.channels ^ (1 << channel) },
+							at: {
+								row: at.row,
+								col: at.col,
+								channels: at.channels ^ (1 << channel),
+								spent: at.spent
+							},
 							moves: node.moves.concat([
 								{ bump: true, direction: step.direction, channel: channel }
 							])
@@ -115,11 +149,13 @@ function planner(level) {
 					return
 				}
 
-				if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+				// A one-way admits only a ball travelling the way it points.
+				var into = tiles.oneWayDirection(tile)
+				if (into !== null && into !== step.direction) return
 				if (avoid[row + ',' + col] && !targets[row + ',' + col]) return
 
 				queue.push({
-					at: { row: row, col: col, channels: at.channels },
+					at: { row: row, col: col, channels: at.channels, spent: at.spent },
 					moves: node.moves.concat([ { row: row, col: col } ])
 				})
 			})
@@ -128,13 +164,18 @@ function planner(level) {
 		return null
 	}
 
-	// Where a run of moves leaves the ball, and which channels it leaves thrown.
+	// Where a run of moves leaves the ball, which channels it leaves thrown, and
+	// which buttons it leaves spent.
 	function after(from, moves) {
-		var at = { row: from.row, col: from.col, channels: from.channels }
+		var at = { row: from.row, col: from.col, channels: from.channels, spent: from.spent }
 
 		moves.forEach(function(move) {
 			if (move.bump) at.channels = at.channels ^ (1 << move.channel)
-			else { at.row = move.row; at.col = move.col }
+			else {
+				at.row = move.row
+				at.col = move.col
+				at = afterRollingOnto(at)
+			}
 		})
 
 		return at
@@ -168,7 +209,7 @@ function planner(level) {
 		return search(from, Object.keys(coins))
 	}
 
-	return { routeTo: routeTo, coinOrder: coinOrder }
+	return { routeTo: routeTo, coinOrder: coinOrder, buttons: buttons }
 }
 
 /***** Driving it, four keys at a time *****/
@@ -253,9 +294,21 @@ function play(level) {
 		return bits
 	}
 
+	// Which buttons the board shows as spent. The plan is redone from the real
+	// game's state each leg, so this is read off the grid rather than tracked.
+	function spentButtons() {
+		var bits = 0
+
+		plan.buttons.forEach(function(button, index) {
+			if (game.grid[button.row][button.col] === button.forms.on) bits = bits | (1 << index)
+		})
+
+		return bits
+	}
+
 	function where() {
 		var at = game.ballSquare()
-		return { row: at.row, col: at.col, channels: channels() }
+		return { row: at.row, col: at.col, channels: channels(), spent: spentButtons() }
 	}
 
 	// Replanned from where the ball actually ended up, not from where the plan

@@ -27,23 +27,39 @@ var STEPS = [
 // channel has been reached and thrown, and a switch can perfectly well be
 // stranded behind the very thing it clears. Bumping a switch the ball cannot
 // roll over flips its channel and leaves the ball where it is, which is what the
-// rules do. A floor switch is held down only while the ball sits on it, so it
-// opens the way out of its own square and no further.
+// rules do. A floor button throws its channel when the ball rolls onto it and
+// stays thrown, and throwing it spends it until another button on the same
+// channel is worked.
 //
 // This is what the board allows, not whether the marble can be steered along it;
 // tests/game.js plays the rules themselves.
 function explore(level) {
 	var height = level.tiles.length
 	var width = level.tiles[0].length
-	var channelAt = {};
+	var channelAt = {}
+	// Floor buttons carry their own armed-or-spent state, so they are tracked by
+	// index in a second bitmask alongside the channels.
+	var buttons = []
+	var buttonAt = {};
 
 	(level.wiring || []).forEach(function(wire) {
 		channelAt[wire.row + ',' + wire.col] = wire.channel
+
+		var forms = tiles.switchForms(level.tiles[wire.row][wire.col])
+
+		if (forms && forms.thrownBy === tiles.ROLLED_ONTO) {
+			buttonAt[wire.row + ',' + wire.col] = buttons.length
+			buttons.push({ row: wire.row, col: wire.col, channel: wire.channel, forms: forms })
+		}
 	})
 
-	// What a square shows with these channels thrown.
-	function tileAt(row, col, channels) {
+	// What a square shows with these channels thrown and these buttons spent.
+	function tileAt(row, col, channels, spent) {
 		var base = level.tiles[row][col]
+		var button = buttonAt[row + ',' + col]
+
+		if (button !== undefined) return (spent & (1 << button)) ? buttons[button].forms.on : base
+
 		var channel = channelAt[row + ',' + col]
 
 		if (channel === undefined || (channels & (1 << channel)) === 0) return base
@@ -55,62 +71,82 @@ function explore(level) {
 		return partner === null ? base : partner
 	}
 
+	// Rolling onto an armed button throws its channel, spends it, and re-arms
+	// every other button on that channel.
+	function afterRollingOnto(at) {
+		var button = buttonAt[at.row + ',' + at.col]
+
+		if (button === undefined || (at.spent & (1 << button))) return at
+
+		var spent = at.spent
+
+		buttons.forEach(function(other, index) {
+			if (other.channel !== buttons[button].channel) return
+			spent = index === button ? (spent | (1 << index)) : (spent & ~(1 << index))
+		})
+
+		return {
+			row: at.row,
+			col: at.col,
+			channels: at.channels ^ (1 << buttons[button].channel),
+			spent: spent
+		}
+	}
+
 	var squares = {}
 	var seen = {}
-	var queue = [ { row: level.start.row, col: level.start.col, channels: 0 } ]
+	var queue = [ { row: level.start.row, col: level.start.col, channels: 0, spent: 0 } ]
 	var finished = false
 
 	while (queue.length) {
 		var at = queue.shift()
-		var key = at.row + ',' + at.col + ',' + at.channels
+		var key = at.row + ',' + at.col + ',' + at.channels + ',' + at.spent
 
 		if (seen[key]) continue
 
 		seen[key] = true
 		squares[at.row + ',' + at.col] = true
 
-		var here = tileAt(at.row, at.col, at.channels)
+		var here = tileAt(at.row, at.col, at.channels, at.spent)
 
 		if (tiles.isGoal(here)) finished = true
 		// Rolling onto a pit or a death cube is where the ball's journey ends.
 		if (tiles.isDeadly(here)) continue
 
-		// A floor switch is held down for as long as the ball is on this square.
+		// Arriving here may have thrown a button, which stays thrown.
+		at = afterRollingOnto(at)
 		var held = at.channels
-		var switchHere = tiles.switchForms(here)
-		var channelHere = channelAt[at.row + ',' + at.col]
 
-		if (switchHere && switchHere.momentary && channelHere !== undefined) {
-			held = held | (1 << channelHere)
-		}
-
-		var leaving = tiles.oneWayDirection(here)
 
 		STEPS.forEach(function(step) {
 			var row = at.row + step.row
 			var col = at.col + step.col
 
 			if (row < 0 || col < 0 || row >= height || col >= width) return
-			// A one-way arrow will not let the ball turn back through it.
-			if (leaving !== null && OPPOSITE[leaving] === step.direction) return
-
-			var tile = tileAt(row, col, held)
+			var tile = tileAt(row, col, held, at.spent)
 
 			if (tiles.isWall(tile)) {
 				var forms = tiles.switchForms(tile)
 				var channel = channelAt[row + ',' + col]
 
 				// Bumping a switch throws it, and the ball stays where it is.
-				if (forms && !forms.momentary && channel !== undefined) {
-					queue.push({ row: at.row, col: at.col, channels: at.channels ^ (1 << channel) })
+				if (forms && forms.thrownBy === tiles.BUMPED && channel !== undefined) {
+					queue.push({
+						row: at.row,
+						col: at.col,
+						channels: at.channels ^ (1 << channel),
+						spent: at.spent
+					})
 				}
 
 				return
 			}
 
-			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+			// A one-way admits only a ball travelling the way it points.
+			var into = tiles.oneWayDirection(tile)
+			if (into !== null && into !== step.direction) return
 
-			queue.push({ row: row, col: col, channels: at.channels })
+			queue.push({ row: row, col: col, channels: at.channels, spent: at.spent })
 		})
 	}
 

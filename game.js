@@ -15,11 +15,19 @@ var BALL_SPEED_THRESH = 0.1
 var BALL_MAX_SPEED = 99
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
-// How long a gate rests on each frame as it slides open or shut.
-var GATE_FRAME_MS = 55
+// How long a gate rests on each frame as it slides open or shut. The original
+// steps a door on every fourth animation tick, and a tick is the 40 ms its clock
+// counts per frame, so a door takes about half a second end to end.
+var GATE_FRAME_MS = 160
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }
+
+// The exit only counts in the middle of its square. The original reads the
+// marble's position in sixteenths of a tile and asks for 5 to 9 on both axes, so
+// the marble can clip a corner of the exit and roll on.
+var GOAL_MIN_16TH = 5
+var GOAL_MAX_16TH = 9
 
 var PLAYING = 'playing'
 var DEAD = 'dead'
@@ -59,6 +67,9 @@ module.exports = function createGame(levels, options) {
     var wiring = {}
     var activatedCells = []
     var switchCells = []
+    // Floor buttons, which carry their own armed-or-spent state rather than the
+    // channel's.
+    var buttons = []
     var standingOn = null
     var notes = {}
     // The secret pass-through key. Undocumented on purpose, so it is off until
@@ -101,13 +112,21 @@ module.exports = function createGame(levels, options) {
     }
 
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
-    // ball is trying to enter against.
+    // ball is not travelling the way it points.
+    //
+    // The original is stricter than "no going back": a one-way pointing right
+    // refuses a ball coming from above or below as well, and only lets through one
+    // travelling straight the way the arrow points. A square merely touched,
+    // without being entered, always passes - the original's `dir == 0`, which is
+    // what a call with no direction means here.
     function blocks(tileNumber, direction) {
         if (ghost) return false
         if (tiles.isWall(tileNumber)) return true
 
         var oneWay = tiles.oneWayDirection(tileNumber)
-        return oneWay !== null && oneWay === OPPOSITE[direction]
+        if (oneWay === null) return false
+
+        return direction !== undefined && oneWay !== direction
     }
 
     /***** Channels *****/
@@ -135,7 +154,8 @@ module.exports = function createGame(levels, options) {
 
         wiring = {}
         activatedCells = []
-        switchCells = [];
+        switchCells = []
+        buttons = [];
 
         (level.wiring || []).forEach(function(wire) {
             wiring[wire.row + ',' + wire.col] = wire.channel
@@ -144,7 +164,11 @@ module.exports = function createGame(levels, options) {
             var forms = tiles.switchForms(tile)
 
             if (forms) {
-                switchCells.push({ row: wire.row, col: wire.col, channel: wire.channel, forms: forms })
+                var cell = { row: wire.row, col: wire.col, channel: wire.channel, forms: forms }
+
+                if (forms.thrownBy === tiles.ROLLED_ONTO) buttons.push(cell)
+                else switchCells.push(cell)
+
                 return
             }
 
@@ -220,24 +244,28 @@ module.exports = function createGame(levels, options) {
         if (channel === null) return
 
         var forms = tiles.switchForms(game.grid[row][col])
-        if (forms && !forms.momentary) setChannel(channel, !channels[channel])
+        if (forms && forms.thrownBy === tiles.BUMPED) setChannel(channel, !channels[channel])
     }
 
-    // A floor switch is held down only while the ball is on it.
-    function pressSquare(at) {
-        var channel = channelAt(at.row, at.col)
-        if (channel === null) return
+    // The ball rolled onto a square. An armed floor button throws its channel and
+    // is spent by it; every other button on that channel is re-armed, so a lone
+    // button works once and a pair of them toggle back and forth.
+    function rollOntoSquare(at) {
+        var pressed = null
 
-        var forms = tiles.switchForms(game.grid[at.row][at.col])
-        if (forms && forms.momentary) setChannel(channel, true)
-    }
+        buttons.forEach(function(button) {
+            if (button.row === at.row && button.col === at.col &&
+                game.grid[button.row][button.col] === button.forms.off) pressed = button
+        })
 
-    function releaseSquare(at) {
-        var channel = channelAt(at.row, at.col)
-        if (channel === null) return
+        if (!pressed) return
 
-        var forms = tiles.switchForms(game.grid[at.row][at.col])
-        if (forms && forms.momentary) setChannel(channel, false)
+        buttons.forEach(function(button) {
+            if (button.channel !== pressed.channel) return
+            setTile(button.row, button.col, button === pressed ? button.forms.on : button.forms.off)
+        })
+
+        setChannel(pressed.channel, !channels[pressed.channel])
     }
 
     /***** Loading and restarting *****/
@@ -330,15 +358,10 @@ module.exports = function createGame(levels, options) {
             ball.sy = -ball.sy
         }
 
-        // A one-way arrow will not let the ball turn back through it.
-        var oneWay = tiles.oneWayDirection(under)
-
-        if (oneWay) {
-            if (oneWay === 'left' && ball.sx > 0) ball.sx = 0
-            if (oneWay === 'right' && ball.sx < 0) ball.sx = 0
-            if (oneWay === 'up' && ball.sy > 0) ball.sy = 0
-            if (oneWay === 'down' && ball.sy < 0) ball.sy = 0
-        }
+        // Nothing restrains a ball already standing on a one-way: the original
+        // only ever checks the square being entered, so a ball that got onto an
+        // arrow can leave it in any direction. What stops it going back is the
+        // next arrow along, not the one under it.
 
         // http://www.w3schools.com/jsref/jsref_abs.asp
         if (Math.abs(ball.sx) < BALL_SPEED_THRESH) ball.sx = 0
@@ -383,14 +406,34 @@ module.exports = function createGame(levels, options) {
         }
     }
 
+    // In the middle of the square, in the sixteenths the original works in.
+    function overSquareCentre() {
+        var ix = Math.floor(ballIX())
+        var iy = Math.floor(ballIY())
+
+        return ix >= GOAL_MIN_16TH && ix <= GOAL_MAX_16TH &&
+               iy >= GOAL_MIN_16TH && iy <= GOAL_MAX_16TH
+    }
+
     function checkWhatBallIsOn() {
         var here = ballSquare()
+        var enteringNew = !standingOn || standingOn.row !== here.row || standingOn.col !== here.col
 
-        if (!standingOn || standingOn.row !== here.row || standingOn.col !== here.col) {
-            if (standingOn) releaseSquare(standingOn)
+        if (enteringNew) {
             standingOn = { row: here.row, col: here.col }
-            pressSquare(standingOn)
+            rollOntoSquare(standingOn)
             here = ballSquare()
+        }
+
+        // A descending floor gives way one step per crossing, and the last step
+        // leaves an open pit, which the deadly check below then falls into.
+        if (enteringNew) {
+            var worn = tiles.wornBy(here.tile)
+
+            if (worn !== null) {
+                setTile(here.row, here.col, worn)
+                here = ballSquare()
+            }
         }
 
         if (tiles.isLetter(here.tile)) {
@@ -408,7 +451,7 @@ module.exports = function createGame(levels, options) {
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
         } else if (tiles.isDeadly(here.tile)) {
             die()
-        } else if (tiles.isGoal(here.tile)) {
+        } else if (tiles.isGoal(here.tile) && overSquareCentre()) {
             winLevel()
         }
     }
