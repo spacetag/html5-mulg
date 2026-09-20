@@ -204,7 +204,16 @@ module.exports = function createGame(levels, options) {
         // The ball is inside a gate it never rolled into, so the gate came down on
         // top of it. mulg.c ends the level right here.
         if (tiles.isClosedGate(tileNumber)) {
-            if (!entering) crushed()
+            if (!entering) killedBy('The gate closed on you.')
+            return true
+        }
+
+        // A death cube kills the ball that touches it and is solid besides, so in
+        // the original the ball never gets onto its square at all. It is the only
+        // square that kills from next door: an open pit only takes the ball that
+        // is over it.
+        if (tileNumber === tiles.TILE.DEATH_CUBE) {
+            killedBy('You touched a death cube.')
             return true
         }
 
@@ -619,11 +628,12 @@ module.exports = function createGame(levels, options) {
         }
     }
 
-    // A gate came down on the ball. It costs a life like any other way of dying,
-    // and it can happen in the middle of a step, so it only counts once.
-    function crushed() {
+    // Something the ball has run into is fatal rather than merely solid. It costs
+    // a life like any other way of dying, and it can happen in the middle of a
+    // step, so it only counts once.
+    function killedBy(what) {
         if (game.status !== PLAYING) return
-        die('Squashed by a gate.')
+        die(what)
     }
 
     function winLevel() {
@@ -666,7 +676,7 @@ module.exports = function createGame(levels, options) {
             tileChanges.push({ row: here.row, col: here.col, tile: tiles.TILE.FLOOR })
         } else if (tiles.isClosedGate(here.tile)) {
             // mulg.c: "standing in closing door -> end of game".
-            crushed()
+            killedBy('The gate closed on you.')
         } else if (tiles.isDeadly(here.tile)) {
             die()
         } else if (tiles.isGoal(here.tile)) {

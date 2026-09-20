@@ -255,6 +255,37 @@ test('coins picked up on a finished level are banked', function(t) {
 	t.end()
 })
 
+test('a death cube kills the ball that touches it, not just the one on it', function(t) {
+	// Two squares of room, then the cube. The ball never reaches the cube's own
+	// square: touching it from next door is what kills, and it is solid besides.
+	var game = createGame([ corridor('one', [ F, F, X, F ]) ])
+
+	roll(game, 'right', 300)
+
+	t.equal(game.status, createGame.DEAD, 'it died on the way')
+	t.equal(game.lives, 2)
+	t.equal(game.ballSquare().col, 2, 'in the square before the cube, not on it')
+	t.ok(game.message.indexOf('death cube') !== -1, 'and says what happened: ' + game.message)
+	t.end()
+})
+
+test('an open pit only takes the ball that is over it, not the one beside it', function(t) {
+	var P = tiles.TILE.EMPTY_PIT
+	var game = createGame([ corridor('one', [ F, F, P, F ]) ])
+
+	// Parked in the square next to the pit, leaning towards it as far as it can.
+	game.ball.x = 2 * createGame.TILE_SIZE + 10
+	game.ball.y = 1 * createGame.TILE_SIZE
+	game.ball.sx = 0.3
+	game.ball.sy = 0
+
+	roll(game, 'none', 20)
+
+	t.equal(game.status, createGame.PLAYING, 'standing beside a pit is safe')
+	t.equal(game.lives, 3)
+	t.end()
+})
+
 test('an empty pit costs a life, like the death cube', function(t) {
 	var game = createGame([ corridor('one', [ F, tiles.TILE.EMPTY_PIT, G ]) ])
 
