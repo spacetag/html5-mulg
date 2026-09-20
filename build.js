@@ -96,6 +96,9 @@ module.exports = function createGame(levels, options) {
     var wiring = {}
     var activatedCells = []
     var switchCells = []
+    // Floor buttons, which carry their own armed-or-spent state rather than the
+    // channel's.
+    var buttons = []
     var standingOn = null
     var notes = {}
     // The secret pass-through key. Undocumented on purpose, so it is off until
@@ -138,13 +141,21 @@ module.exports = function createGame(levels, options) {
     }
 
     // A square stops the ball if it is a wall, or if it is a one-way arrow the
-    // ball is trying to enter against.
+    // ball is not travelling the way it points.
+    //
+    // The original is stricter than "no going back": a one-way pointing right
+    // refuses a ball coming from above or below as well, and only lets through one
+    // travelling straight the way the arrow points. A square merely touched,
+    // without being entered, always passes - the original's `dir == 0`, which is
+    // what a call with no direction means here.
     function blocks(tileNumber, direction) {
         if (ghost) return false
         if (tiles.isWall(tileNumber)) return true
 
         var oneWay = tiles.oneWayDirection(tileNumber)
-        return oneWay !== null && oneWay === OPPOSITE[direction]
+        if (oneWay === null) return false
+
+        return direction !== undefined && oneWay !== direction
     }
 
     /***** Channels *****/
@@ -172,7 +183,8 @@ module.exports = function createGame(levels, options) {
 
         wiring = {}
         activatedCells = []
-        switchCells = [];
+        switchCells = []
+        buttons = [];
 
         (level.wiring || []).forEach(function(wire) {
             wiring[wire.row + ',' + wire.col] = wire.channel
@@ -181,7 +193,11 @@ module.exports = function createGame(levels, options) {
             var forms = tiles.switchForms(tile)
 
             if (forms) {
-                switchCells.push({ row: wire.row, col: wire.col, channel: wire.channel, forms: forms })
+                var cell = { row: wire.row, col: wire.col, channel: wire.channel, forms: forms }
+
+                if (forms.thrownBy === tiles.ROLLED_ONTO) buttons.push(cell)
+                else switchCells.push(cell)
+
                 return
             }
 
@@ -257,24 +273,28 @@ module.exports = function createGame(levels, options) {
         if (channel === null) return
 
         var forms = tiles.switchForms(game.grid[row][col])
-        if (forms && !forms.momentary) setChannel(channel, !channels[channel])
+        if (forms && forms.thrownBy === tiles.BUMPED) setChannel(channel, !channels[channel])
     }
 
-    // A floor switch is held down only while the ball is on it.
-    function pressSquare(at) {
-        var channel = channelAt(at.row, at.col)
-        if (channel === null) return
+    // The ball rolled onto a square. An armed floor button throws its channel and
+    // is spent by it; every other button on that channel is re-armed, so a lone
+    // button works once and a pair of them toggle back and forth.
+    function rollOntoSquare(at) {
+        var pressed = null
 
-        var forms = tiles.switchForms(game.grid[at.row][at.col])
-        if (forms && forms.momentary) setChannel(channel, true)
-    }
+        buttons.forEach(function(button) {
+            if (button.row === at.row && button.col === at.col &&
+                game.grid[button.row][button.col] === button.forms.off) pressed = button
+        })
 
-    function releaseSquare(at) {
-        var channel = channelAt(at.row, at.col)
-        if (channel === null) return
+        if (!pressed) return
 
-        var forms = tiles.switchForms(game.grid[at.row][at.col])
-        if (forms && forms.momentary) setChannel(channel, false)
+        buttons.forEach(function(button) {
+            if (button.channel !== pressed.channel) return
+            setTile(button.row, button.col, button === pressed ? button.forms.on : button.forms.off)
+        })
+
+        setChannel(pressed.channel, !channels[pressed.channel])
     }
 
     /***** Loading and restarting *****/
@@ -367,15 +387,10 @@ module.exports = function createGame(levels, options) {
             ball.sy = -ball.sy
         }
 
-        // A one-way arrow will not let the ball turn back through it.
-        var oneWay = tiles.oneWayDirection(under)
-
-        if (oneWay) {
-            if (oneWay === 'left' && ball.sx > 0) ball.sx = 0
-            if (oneWay === 'right' && ball.sx < 0) ball.sx = 0
-            if (oneWay === 'up' && ball.sy > 0) ball.sy = 0
-            if (oneWay === 'down' && ball.sy < 0) ball.sy = 0
-        }
+        // Nothing restrains a ball already standing on a one-way: the original
+        // only ever checks the square being entered, so a ball that got onto an
+        // arrow can leave it in any direction. What stops it going back is the
+        // next arrow along, not the one under it.
 
         // http://www.w3schools.com/jsref/jsref_abs.asp
         if (Math.abs(ball.sx) < BALL_SPEED_THRESH) ball.sx = 0
@@ -434,9 +449,8 @@ module.exports = function createGame(levels, options) {
         var enteringNew = !standingOn || standingOn.row !== here.row || standingOn.col !== here.col
 
         if (enteringNew) {
-            if (standingOn) releaseSquare(standingOn)
             standingOn = { row: here.row, col: here.col }
-            pressSquare(standingOn)
+            rollOntoSquare(standingOn)
             here = ballSquare()
         }
 
@@ -1990,8 +2004,8 @@ var TILE = {
     VGATE_OPEN: 14,
     HGATE_CLOSED: 15,
     HGATE_OPEN: 18,
-    FLOOR_SWITCH_UP: 88,   // hidden in the floor, held down by the ball
-    FLOOR_SWITCH_DOWN: 89,
+    FLOOR_SWITCH_UP: 88,   // hidden in the floor: armed, waiting to be rolled on
+    FLOOR_SWITCH_DOWN: 89, // the same button, spent
     DESCENDING_FLOOR: 85,  // gives way a step at a time, three crossings in all
     DESCENDING_FLOOR_2: 86,
     DESCENDING_FLOOR_3: 87,
@@ -2027,10 +2041,23 @@ var FRAME_SEQUENCES = [
     [ TILE.HGATE_CLOSED, 16, 17, TILE.HGATE_OPEN ]
 ]
 
-// Switches show their own channel's state, so they have two forms as well.
+// Switches have two forms, and how they are thrown differs.
+//
+// A wall switch is solid, so the ball throws it by bumping into it, and its two
+// forms show which way its channel is set.
+//
+// A floor button is thrown by rolling onto it, and its two forms are not the
+// channel's state but the button's own: 88 is armed and 89 is spent. Throwing a
+// button spends it and re-arms every other button on the same channel, so a lone
+// button works once and a pair of them toggle back and forth. That is what the
+// original does, and it is not the same as holding the channel on while the ball
+// sits on the square.
+var BUMPED = 'bumped'
+var ROLLED_ONTO = 'rolled-onto'
+
 var SWITCH_FORMS = [
-    { off: TILE.SWITCH_LOW, on: TILE.SWITCH_HIGH, momentary: false },
-    { off: TILE.FLOOR_SWITCH_UP, on: TILE.FLOOR_SWITCH_DOWN, momentary: true }
+    { off: TILE.SWITCH_LOW, on: TILE.SWITCH_HIGH, thrownBy: BUMPED },
+    { off: TILE.FLOOR_SWITCH_UP, on: TILE.FLOOR_SWITCH_DOWN, thrownBy: ROLLED_ONTO }
 ]
 
 // How a square treats the ball rolling over it. `decayOn` applies while the
@@ -2157,8 +2184,8 @@ function activatedPartner(tileNumber) {
     return PARTNERS[tileNumber] === undefined ? null : PARTNERS[tileNumber]
 }
 
-// The pair of forms for a switch, or null if this tile is not one. A momentary
-// switch is held on only while the ball is on it; the other kind toggles.
+// The pair of forms for a switch, or null if this tile is not one. `thrownBy`
+// says how the ball works it: by bumping into it, or by rolling onto it.
 function switchForms(tileNumber) {
     for (var i = 0; i < SWITCH_FORMS.length; i++) {
         if (SWITCH_FORMS[i].off === tileNumber || SWITCH_FORMS[i].on === tileNumber) {
@@ -2192,6 +2219,8 @@ module.exports = {
     frameSequence: frameSequence,
     isLetter: isLetter,
     LETTER: LETTER,
+    BUMPED: BUMPED,
+    ROLLED_ONTO: ROLLED_ONTO,
     CHANNELS: 32
 }
 

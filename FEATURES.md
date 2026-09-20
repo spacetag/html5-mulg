@@ -46,12 +46,12 @@ Rows marked **done** have been implemented in this port.
 | Coins and a score | 1 and 5 cent coins (98, 100) | `game.js` |
 | Icy floor, oil, mud | Per-tile friction and steering. The numbers are not the original's yet; see row 45 | `tiles.js` |
 | Descending floors that give way | 85/86/87: three crossings, then an open pit | `game.js`, `tiles.js` |
-| One-way tiles | 44–47; the ball cannot come back through | `game.js` |
+| One-way tiles | 44–47; only a ball travelling the way the arrow points gets in, from any side | `game.js` |
 | A clock, and level progression | Per-level timer, R moves you on | `game.js`, `index.js` |
 | Switches and channels | 32 channels wiring switches to gates and pits | `game.js`, `levels.js` |
 | Gates that open and close | 11/14 and 15/18, on a channel, a frame every 160 ms as in the original | `tiles.js` |
 | Pits that fill in, floors that drop away | 3/4, on a channel | `tiles.js` |
-| Floor switches | 88/89, held down only while the ball is on them. The original latches instead; see row 30 | `game.js` |
+| Floor buttons | 88/89, armed or spent: rolling onto one throws its channel for good and re-arms the others on that channel | `game.js` |
 | Level selector | Jumps to any of the levels, keeping the score banked so far | `index.js`, `game.js` |
 | 1x/2x speed button | Runs the whole simulation twice per frame, so the game plays the same, faster | `index.js` |
 
@@ -107,7 +107,7 @@ Ordered roughly by how much each one blocks the rest.
 | 27 | **Grooves** — pull the ball towards their centre | 053–068 | Missing; currently plain floor |
 | 28 | **Ramparts** — push the ball away from their centre | 069–084 | Missing; currently plain floor |
 | 29 | **Descending floors** — collapse after two more crossings | 085, 086, 087 | **done** — a square drops one step each time the ball rolls onto it anew, 085 to 086 to 087 to an open pit, so it takes three crossings. A plain floor marked as vanishing by its attribute byte is the original's other way of spelling this, and needs a per-square attribute the level format here does not carry yet |
-| 30 | **Floor switches** — hidden switches pressed by the ball | 088, 089 | Implemented, but not the way the original does it. Now settled: a floor button is **armed or spent**, not held down. Rolling onto 088 throws its channel and leaves the square as 089, which does nothing; what re-arms it is another button on the same channel being pressed. So a lone button is a one-shot and a pair toggle back and forth. Several levels here lean on the momentary reading, so this change waits on them |
+| 30 | **Floor switches** — hidden switches pressed by the ball | 088, 089 | **done** — a floor button is **armed or spent**, not held down. Rolling onto 088 throws its channel and leaves the square as 089, which does nothing; throwing it re-arms every other button on the same channel, so a lone button is a one-shot and a pair toggle back and forth |
 | 31 | **Flip tiles** — toggle an X and a Y channel | 090, 091 | Missing; they need two channels per cell, which the `wiring` list does not carry yet |
 | 32 | **Parachute** — lets the ball hover over pits, without steering | 095 | Missing |
 | 33 | **Coin slot** — activated by spending a coin | 102 | Missing, and confirmed: coins really are currency. The original puts a picked-up coin in a five-slot inventory and the slot takes a 5 first, then a 1. See row 6a |
@@ -145,7 +145,7 @@ Settled by the C source, and the biggest remaining block of work.
 | 47 | **Units.** Position and speed are fixed point in 1/256 of a pixel, and a tile is 16 pixels. There is no stop threshold and no speed cap; integer truncation brings the ball to rest | This port works in floating-point pixels with a 0.1 stop threshold and a cap of 99, both inventions |
 | 48 | **Push magnitude.** A unit of input is worth 32 speed units, scaled by the oil counter. The original reads the stylus's movement delta per event; the ODROID port, which is the nearest reference for a key-driven port, pushes by ±2 a frame per held direction | Input adds 1 unit per 50 ms, on a different scale |
 | 49 | **Reversing squares.** A path, box or ice square whose attribute byte says so inverts the player's input | Missing, and the level format here carries no such attribute |
-| 50 | **A one-way does not restrain a ball already on it** | This port zeroes the ball's speed when it tries to turn back on a one-way square, which the original does not do |
+| 50 | **One-way arrows** admit only a ball travelling the way they point — from above and below as well as from behind — and put no restraint at all on a ball already standing on one | **done** on both counts. The looser "no going back" rule and the speed-zeroing on the square itself are both gone |
 
 ---
 
@@ -154,7 +154,7 @@ Settled by the C source, and the biggest remaining block of work.
 1. **The movement model** — the units, the friction constants, the push
    magnitude, sub-stepping, the cost of a bounce, and corner collision. How the
    game feels rests on all of it, and it is now fully specified. *(items 13, 13a,
-   13b, 45–48, 50)*
+   13b, 45–48)*
 2. **Forces on the ball** — grooves, ramparts, holes, bumps, bouncers and
    magnets. They are all the same shape of change to the movement code, and they
    are what makes the original's levels play the way they do. *(items 18, 19, 25,
@@ -162,8 +162,8 @@ Settled by the C source, and the biggest remaining block of work.
 3. **The rest of the channel-driven tiles** — the ventilator, flip tiles (which
    need two channels per square), locks and keys, and the coin slot, now that
    channels exist. *(items 17, 21, 31, 33)*
-4. **The switch model itself** — channels as independent toggles rather than one
-   boolean, and floor buttons as armed-or-spent. *(items 12, 30)*
+4. **Channels as independent toggles** rather than one boolean per channel, so
+   squares wired together can sit in opposite states. *(item 12)*
 5. **Things that move or change** — boxes, walkers, beetles, bombs. *(items 22,
    23, 24, 26, 35, 37)*
 6. **Content** — multi-screen levels, then the `.pdb` / `.lev` readers so the
