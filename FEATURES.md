@@ -31,7 +31,7 @@ Rows marked **done** have been implemented in this port.
 | A marble with momentum | Velocity with per-surface decay and a stop threshold | `game.js` |
 | Arrow-key tilt control | Multi-key aware, sampled every 50 ms to mimic the Palm's input rate | `index.js`, `game.js` |
 | 60 fps loop scaled off the original's 20 fps | `frame-loop` at `20 × FPS_MULTIPLIER` | `index.js` |
-| Wall collision, sides and corners | Movement is stepped a sixteenth of a square at a time and checked after each step, off the sides and off the corners, and a hit costs the ball 30% of its speed | `game.js`, `collision-checking.js` |
+| Wall collision, sides and corners | Movement is stepped a sixteenth of a square at a time and checked after each step, off the sides and off the corners, and a hit costs the ball 30% of its speed. One deliberate departure: the original's test for whether to step at all has a bracketing typo that lets a fast leftward marble through, and `game.js` says why it is not copied | `game.js`, `collision-checking.js` |
 | Fifteen levels, held as data | `name`, `start`, `tiles` per level | `levels.js` |
 | The exit (Target cross, tile 5) | Rolling onto it finishes the level | `game.js`, `tiles.js` |
 | Death and three lives | Empty pit (3), death cube (42), spent descending floor (87). A death cube kills on touch and is solid besides, so the ball never reaches its square; a pit only takes the ball that is over it | `game.js` |

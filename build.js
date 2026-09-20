@@ -518,6 +518,20 @@ module.exports = function createGame(levels, options) {
     // inside something. That is the whole difference between a ball that turns
     // away the instant it touches a wall and one that jumps a tile per frame and
     // sails straight through: it cannot outrun a check that happens every step.
+    //
+    // One deliberate difference from the original. Its own test for whether the
+    // travel is far enough to need stepping reads
+    //
+    //     if((ABS(marble_sx>=256)||(ABS(marble_sy)>=256)))
+    //
+    // where the first ABS has swallowed the comparison instead of the value, so
+    // what it really asks is `marble_sx >= 256`, unsigned. A marble moving fast to
+    // the *left* with little vertical speed therefore skips the stepping
+    // altogether and takes its whole travel in one go, which is the very
+    // tunnelling the stepping was added to stop - the version history calls that
+    // fix out by name. It is a typo, not a rule: the line below it gets ABS right,
+    // and copying it would only put this port's own bug back. The condition here
+    // is the one the original meant.
     function moveBall(dx, dy) {
         var ball = game.ball
         var goneX = 0
