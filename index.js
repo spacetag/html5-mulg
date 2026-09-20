@@ -3,7 +3,8 @@
 var frameLoop = require('frame-loop')
 var createBoard = require('./render')
 var createGame = require('./game')
-var levels = require('./levels')
+var handMade = require('./levels')
+var originalSets = require('./levels-original')
 
 var TILE_SIZE = createGame.TILE_SIZE
 var FPS_MULTIPLIER = createGame.FPS_MULTIPLIER
@@ -25,6 +26,24 @@ var GHOST_KEY = 87 // w
 // at twice the rate and the game plays exactly as it does at 1x, only quicker.
 var SPEEDS = [ 1, 2 ]
 var speedIndex = 0
+
+// The hand-made levels first, then the levels the original game shipped with,
+// converted from its own level databases by tools/convert-levels.js. A converted
+// level is only listed if it needs nothing the port has not implemented: the
+// rest are in levels-original.js with a `needs` saying what they are waiting on,
+// and putting one of those on the board would show a puzzle with its puzzle
+// missing.
+var levels = handMade.concat(originalSets.reduce(function(playable, set) {
+    return playable.concat(set.levels.filter(function(level) {
+        return !level.needs
+    }).map(function(level) {
+        // The HUD has one line for the name, so the set goes in it.
+        var named = {}
+        for (var key in level) named[key] = level[key]
+        named.name = level.name + ' (' + set.name + ')'
+        return named
+    }))
+}, []))
 
 var game = createGame(levels)
 var board = createBoard(document.getElementById("board"), TILE_SIZE)

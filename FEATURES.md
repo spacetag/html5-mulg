@@ -65,12 +65,49 @@ Ordered roughly by how much each one blocks the rest.
 
 | # | Feature in the original | Status here |
 | --- | --- | --- |
-| 7 | **Hundreds of levels**, shipped as level sets | Fifteen hand-made levels, one screen each, built out of the mechanics the port already has |
-| 8 | **Levels larger than one screen.** MulgEd allows up to 37×33 tiles, so a level scrolls or pages | Single screen only |
-| 9 | **`.pdb` level set reading** (Palm database files) | Not started |
-| 10 | **`.lev` level set reading** | Not started |
+| 7 | **Hundreds of levels**, shipped as level sets | Fifteen hand-made levels, plus the three sets the original shipped (48 levels) converted from its own databases into `levels-original.js`. Seven of those need nothing the port is missing and are in the level selector; see *The original levels* below |
+| 8 | **Levels larger than one screen.** MulgEd allows up to 37×33 tiles, so a level scrolls or pages | The board is built from the grid, so a 37×33 level draws in full - The Maze is playable. What is missing is the original's paging: a big level makes a wide page instead of scrolling a screen at a time |
+| 9 | **`.pdb` level set reading** (Palm database files) | **done** - `tools/mulg-pdb.js` reads the format and `tools/convert-levels.js` converts a set into level data. It runs offline (`npm run levels`), not in the browser: the databases in `levels/original/` are converted once and checked in |
+| 10 | **`.lev` level set reading** | Not started, and less useful than it looks: `.lev` is the source the original's `makelevel` compiled, and the `.lev` files in Till Harbaum's tree do not always match the `.pdb` files that shipped - in *Watch your step!* the source says horizontal doors where the database holds vertical ones. The database is what the game played |
 | 11 | **A level editor** | Not started; MulgEd already exists and is the reference |
-| 12 | **Channels.** Activator tiles are wired to activated tiles, which is how levels build their puzzles; the level format carries those connections | **done** — `levels.js` carries a `wiring` list of `{ row, col, channel }`, 32 channels as in the original. The original packs the channel into a data byte beside each tile; a `.lev` reader would unpack it into this shape |
+| 12 | **Channels.** Activator tiles are wired to activated tiles, which is how levels build their puzzles; the level format carries those connections | **done** — `levels.js` carries a `wiring` list of `{ row, col, channel }`, 32 channels as in the original. The original packs the channel into a data byte beside each tile, and `tools/convert-levels.js` unpacks it into this shape |
+
+#### The original levels, and what they are waiting on
+
+Converting the three shipped sets says exactly what each missing mechanic is
+worth. Of the 48 levels, **7** use only what the port has built; the rest name
+what they need in `levels-original.js`. "Blocks" counts every level that uses the
+mechanic, "unlocks alone" the levels that need nothing else besides it.
+
+| Mechanic | Blocks | Unlocks alone |
+| --- | --- | --- |
+| Boxes | 19 | 3 |
+| Keys and locks | 15 | 0 |
+| Scarab beetles | 8 | 2 |
+| Bouncer | 7 | 2 |
+| Swing | 6 | 1 |
+| Bombs / matches | 6 | 0 |
+| Coin slot | 6 | 0 |
+| Switch pit | 6 | 0 |
+| Dice | 5 | 0 |
+| Memorize cubes | 5 | 1 |
+| Descending floor | 3 | 0 |
+| Vanishing floor (the marked form) | 1 | 0 |
+| Ventilator | 3 | 0 |
+| Parachute | 3 | 0 |
+| Grooves, ramparts, holes, bumps | 2 each | 0 |
+| Flip tiles | 2 | 1 |
+| Smiley | 2 | 0 |
+| Reverser / un-reverser | 1 each | 0 |
+| Game of Life | 1 | 0 |
+
+Boxes are the single biggest win: they appear in 19 of the 48 levels and three of
+those need nothing else. Keys and locks are second, but never on their own.
+
+The two vanishing floors are counted apart on purpose. Tiles 85-87 give way over
+three crossings; a plain floor square *marked* to vanish spends its first crossing
+becoming tile 85, so it lasts four (`mulg.c:1747` does both in the same two lines,
+which is easy to read as one rule). Only Alcatraz uses the marked form.
 
 ### 2.3 Tile behaviours
 
@@ -133,9 +170,12 @@ Ordered roughly by how much each one blocks the rest.
    need two channels per square), locks and keys, and the coin slot, now that
    channels exist. *(items 17, 21, 31, 33)*
 3. **Things that move or change** — boxes, descending floors, walkers, beetles,
-   bombs. *(items 22, 23, 24, 26, 29, 35, 37)*
-4. **Content** — multi-screen levels, then the `.pdb` / `.lev` readers so the
-   original level sets can be played, then a level selector. *(items 7–10)*
+   bombs. *(items 22, 23, 24, 26, 29, 35, 37)* Boxes belong further up this list
+   than they sit: they are in 19 of the original's 48 levels, more than any other
+   missing mechanic, and three of those levels need nothing else.
+4. **Content** — done in part: the `.pdb` reader and the level selector are in,
+   and the original sets are converted. What is left is the paging a level larger
+   than a screen wants. *(items 7–10)*
 5. **Reach** — touch control and a responsive layout, so it plays on a phone the
    way the original played on a Palm. *(items 39–41)*
 6. **Polish** — high scores, sound, menus, the rarer elements. *(items 1–5, 16,
