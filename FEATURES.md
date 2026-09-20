@@ -81,7 +81,7 @@ Ordered roughly by how much each one blocks the rest.
 | --- | --- | --- | --- |
 | 13 | **Corner collision.** Bouncing off a wall *corner*, not just its flat side | — | **done** — the original's own 16x16 table of which diagonal neighbours the ball's round shape reaches into |
 | 14 | **Switches**, low and high, that activate a channel when touched | 009, 010 | **done** — bumping one throws its channel and the tile shows which way it is set |
-| 15 | **Gates** that open and close on a channel | 011–018 | **done**, including the frames between (012, 013, 016, 017), which a gate rests on for four game frames each the way the original's does, and which kill the ball caught in them |
+| 15 | **Gates** that open and close on a channel | 011–018 | **done**, including the frames between (012, 013, 016, 017), which a gate rests on for 160 ms each the way the original's does, and which kill the ball caught in them |
 | 16 | **Swings** — through one way, then back | 019–022 | Missing |
 | 17 | **Ventilator** — sucks the ball in and you lose, when switched on | 023–026 | Missing; it is channel-driven, so it is ready to be added now |
 | 18 | **Hole** — pulls the ball towards its centre | 027 | Missing |

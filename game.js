@@ -23,11 +23,11 @@ var BOUNCE_KEEP = 0.7
 
 var REGISTER_KEYPRESSES_EVERY_MS = 50
 // How long a gate rests on each frame as it slides open or shut. mulg.c steps a
-// door on every fourth game frame, and a game frame there is what this port calls
-// REGISTER_KEYPRESSES_EVERY_MS, so a gate is a little over half a second between
-// fully open and fully shut. It used to be a quarter of that, which left no time
-// at all to get through one.
-var GATE_FRAME_MS = 4 * REGISTER_KEYPRESSES_EVERY_MS
+// door on every fourth animation tick, and a tick is the 40 ms its own clock
+// counts per frame (`level_time += 40`), so a gate is about half a second between
+// fully open and fully shut. It used to be a third of that, which left no time at
+// all to get through one.
+var GATE_FRAME_MS = 160
 var LIVES_PER_GAME = 3
 
 var OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' }

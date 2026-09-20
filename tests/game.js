@@ -12,7 +12,7 @@ var X = tiles.TILE.DEATH_CUBE
 
 // How long a gate rests on each of its frames, and how many ticks it takes to
 // slide the whole way, with room to spare.
-var GATE_FRAME_MS = 200
+var GATE_FRAME_MS = 160
 var GATE_TICKS = 60
 
 // A one-row corridor the ball can be rolled along from left to right.
