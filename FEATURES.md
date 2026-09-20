@@ -37,7 +37,7 @@ Rows marked **done** have been implemented in this port.
 | Death and three lives | Empty pit (3), death cube (42), spent descending floor (87). A death cube kills on touch and is solid besides, so the ball never reaches its square; a pit only takes the ball that is over it | `game.js` |
 | Coins and a score | 1 and 5 cent coins (98, 100) | `game.js` |
 | Icy floor, oil, mud | Per-tile friction and steering | `tiles.js` |
-| One-way tiles | 44–47; the ball cannot come back through | `game.js` |
+| One-way tiles | 44–47; only the heading the arrow points in gets in, as `check_tile` has it | `game.js` |
 | A clock, and level progression | Per-level timer, R moves you on | `game.js`, `index.js` |
 | Switches and channels | 32 channels wiring switches to gates and pits | `game.js`, `levels.js` |
 | Gates that open and close | 11/14 and 15/18, on a channel, sliding through their in-between frames | `tiles.js` |

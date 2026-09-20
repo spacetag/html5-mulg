@@ -355,6 +355,29 @@ test('a one-way tile can still be entered the way it points', function(t) {
 	t.end()
 })
 
+// mulg.c:1127 whitelists the one heading an arrow points in, rather than
+// blacklisting the heading that comes back at it, so an arrow is a wall to
+// anything crossing it sideways too. Level 8 depended on the looser rule.
+test('a one-way tile refuses the ball crossing it sideways', function(t) {
+	var R = tiles.TILE.ONE_WAY_RIGHT
+	var game = createGame([ {
+		name: 'shaft',
+		start: { row: 1, col: 1 },
+		tiles: [
+			[ W, W, W ],
+			[ W, F, W ],
+			[ W, R, W ],
+			[ W, F, W ],
+			[ W, W, W ]
+		]
+	} ])
+
+	roll(game, 'down', 300)
+
+	t.equal(game.ballSquare().row, 1, 'the ball never got onto the arrow going down')
+	t.end()
+})
+
 var SWITCH = tiles.TILE.SWITCH_LOW
 var FLOOR_SWITCH = tiles.TILE.FLOOR_SWITCH_UP
 var VGATE = tiles.TILE.VGATE_CLOSED
