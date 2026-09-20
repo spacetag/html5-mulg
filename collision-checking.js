@@ -13,14 +13,16 @@ module.exports = function makeCollisionCheckingFunction(level, blocks) {
         return blocks.indexOf(tileNumber) !== -1
     }
 
-    // `direction` is which way the ball is heading into the square, for tiles
-    // like the one-way arrows that only block from one side. A list of tile
-    // numbers ignores it.
-    return function checkForCollision(row, col, direction) {
+    // `entering` is which way the ball is heading into the square, as a pair of
+    // -1/0/1 components, for tiles like the one-way arrows that only block from
+    // one side. It is null when the ball is already overlapping the square rather
+    // than rolling into it, which mulg.c distinguishes and some tiles care about.
+    // A list of tile numbers ignores it.
+    return function checkForCollision(row, col, entering) {
         // http://stackoverflow.com/questions/4228356/integer-division-in-javascript
         row = Math.floor((row + levelHeight) % levelHeight)
         col = Math.floor((col + levelWidth)  % levelWidth)
 
-        return blocksTile(level[row][col], direction)
+        return blocksTile(level[row][col], entering)
     }
 }

@@ -73,3 +73,56 @@ test('a tile has exactly one kind', function(t) {
 
 	t.end()
 })
+
+// The eight headings a ball can roll into a square from, as mulg.c's check_tile
+// numbers them: the four axes are its dir 1/5/7/3 and the four diagonals its
+// 2/4/6/8. Driven tests can only reach the axes, because the corner probe finds a
+// wall before the arrow in every level we have, so the diagonals are checked here.
+var HEADINGS = {
+	left: { x: -1, y: 0 },
+	right: { x: 1, y: 0 },
+	up: { x: 0, y: -1 },
+	down: { x: 0, y: 1 },
+	'up-left': { x: -1, y: -1 },
+	'up-right': { x: 1, y: -1 },
+	'down-left': { x: -1, y: 1 },
+	'down-right': { x: 1, y: 1 }
+}
+
+test('a one-way admits the heading it points in and nothing else', function(t) {
+	var arrows = {
+		left: tiles.TILE.ONE_WAY_LEFT,
+		right: tiles.TILE.ONE_WAY_RIGHT,
+		up: tiles.TILE.ONE_WAY_UP,
+		down: tiles.TILE.ONE_WAY_DOWN
+	}
+
+	Object.keys(arrows).forEach(function(arrow) {
+		var tile = arrows[arrow]
+
+		Object.keys(HEADINGS).forEach(function(heading) {
+			var admitted = tiles.oneWayAdmits(tile, HEADINGS[heading])
+			var what = 'a ' + arrow + ' arrow, entered ' + heading
+
+			if (heading === arrow) t.ok(admitted, what + ', lets the ball in')
+			else t.notOk(admitted, what + ', turns the ball away')
+		})
+	})
+
+	t.end()
+})
+
+test('a one-way does not restrain the ball already on it', function(t) {
+	// mulg.c's dir 0: the ball overlaps the square rather than rolling into it.
+	t.ok(tiles.oneWayAdmits(tiles.TILE.ONE_WAY_RIGHT, null), 'an arrow lets it be')
+	t.ok(tiles.oneWayAdmits(tiles.TILE.ONE_WAY_UP, undefined), 'whichever way it came')
+	t.end()
+})
+
+test('a square that is not an arrow admits every heading', function(t) {
+	Object.keys(HEADINGS).forEach(function(heading) {
+		t.ok(tiles.oneWayAdmits(tiles.TILE.FLOOR, HEADINGS[heading]), 'floor, entered ' + heading)
+	})
+
+	t.end()
+})

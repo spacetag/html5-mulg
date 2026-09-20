@@ -108,7 +108,10 @@ function explore(level) {
 				return
 			}
 
-			if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+			// A one-way admits exactly the one heading it points in, as mulg.c's
+			// check_tile does: not just "never against the arrow".
+			var arrow = tiles.oneWayDirection(tile)
+			if (arrow !== null && arrow !== step.direction) return
 
 			queue.push({ row: row, col: col, channels: at.channels })
 		})

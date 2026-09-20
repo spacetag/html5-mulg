@@ -32,6 +32,11 @@ var MAX_SPEED = 7
 var DEADBAND = 0.4
 var GAIN = 0.28
 var TICKS_PER_SQUARE = 900
+// How near the middle of a corridor is near enough to set off along it. The ball
+// is round and nearly as wide as a square, so a one-square gap leaves it about a
+// third of a square of room either side, and off to one side it catches the
+// corner of the wall beside the gap instead of going through.
+var LINED_UP = 2
 
 /***** Planning a route over the board *****/
 
@@ -76,8 +81,12 @@ function planner(level) {
 
 			if (targets[at.row + ',' + at.col] && node.moves.length) return node.moves
 
+			// What this square is once the ball is standing on it, which is not
+			// what it was on the way in: a momentary plate springs back up as the
+			// ball rolls off it, so a pit it was filling opens again and a gate it
+			// was holding open comes down, both of them on the ball.
 			var here = tileAt(at.row, at.col, at.channels)
-			if (tiles.isDeadly(here)) continue
+			if (tiles.isDeadly(here) || tiles.isClosedGate(here)) continue
 
 			// A floor switch is held down for as long as the ball is on this square.
 			var held = at.channels
@@ -115,7 +124,10 @@ function planner(level) {
 					return
 				}
 
-				if (tiles.oneWayDirection(tile) === OPPOSITE[step.direction]) return
+				// A one-way admits exactly the one heading it points in, as mulg.c's
+				// check_tile does: not just "never against the arrow".
+				var arrow = tiles.oneWayDirection(tile)
+				if (arrow !== null && arrow !== step.direction) return
 				if (avoid[row + ',' + col] && !targets[row + ',' + col]) return
 
 				queue.push({
@@ -179,7 +191,11 @@ function release(game) {
 
 // Push towards the speed that would close the gap, and push back when the ball
 // is already going faster than that. On ice this is the only way to stop.
-function steer(game, targetRow, targetCol) {
+//
+// `across` is the axis the ball has to be lined up on before it is worth setting
+// off, which is the one it is not travelling along. Until it is lined up the ball
+// is braked rather than let go of, because letting go of it on ice does nothing.
+function steer(game, targetRow, targetCol, across) {
 	function axis(back, forward, gap, speed) {
 		var want = gap * GAIN
 
@@ -190,8 +206,14 @@ function steer(game, targetRow, targetCol) {
 		game.input[forward] = speed < want - DEADBAND
 	}
 
-	axis('left', 'right', targetCol * TILE_SIZE - game.ball.x, game.ball.sx)
-	axis('up', 'down', targetRow * TILE_SIZE - game.ball.y, game.ball.sy)
+	var downGap = targetRow * TILE_SIZE - game.ball.y
+	var rightGap = targetCol * TILE_SIZE - game.ball.x
+
+	if (across === 'x' && Math.abs(rightGap) > LINED_UP) downGap = 0
+	if (across === 'y' && Math.abs(downGap) > LINED_UP) rightGap = 0
+
+	axis('left', 'right', rightGap, game.ball.sx)
+	axis('up', 'down', downGap, game.ball.sy)
 }
 
 function outcome(game) {
@@ -199,9 +221,33 @@ function outcome(game) {
 	return 'died'
 }
 
-function rollTo(game, move) {
+// The far end of the straight run the ball is setting off on. Aiming at the next
+// square along means braking to a standstill in every square on the way, and a
+// gate shuts in about the time it takes to cross its own square at a fair clip,
+// so a ball that stops that often can never get through one. Aiming at the end of
+// the run instead keeps it rolling, which is what a player does.
+function runEnd(from, moves, i) {
+	var last = i
+	var downStep = moves[i].row - from.row
+	var rightStep = moves[i].col - from.col
+
+	while (last + 1 < moves.length && !moves[last + 1].bump &&
+		moves[last + 1].row - moves[last].row === downStep &&
+		moves[last + 1].col - moves[last].col === rightStep) last++
+
+	return moves[last]
+}
+
+function rollTo(game, moves, index) {
+	var move = moves[index]
+	var from = game.ballSquare()
+	var aim = runEnd(from, moves, index)
+	// Rolling along a row, it is the column the ball has to be lined up on, and
+	// the other way about.
+	var across = move.row === from.row ? 'y' : 'x'
+
 	for (var i = 0; i < TICKS_PER_SQUARE; i++) {
-		steer(game, move.row, move.col)
+		steer(game, aim.row, aim.col, across)
 		game.tick(16)
 
 		if (game.status !== createGame.PLAYING) { release(game); return outcome(game) }
@@ -266,7 +312,7 @@ function play(level) {
 
 		for (var i = 0; i < moves.length; i++) {
 			var move = moves[i]
-			var result = move.bump ? bump(game, move) : rollTo(game, move)
+			var result = move.bump ? bump(game, move) : rollTo(game, moves, i)
 
 			if (result === 'ok') continue
 			if (result === 'won') return what === 'the exit' ? null : 'rolled onto the exit on the way to ' + what
