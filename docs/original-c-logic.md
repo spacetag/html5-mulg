@@ -230,10 +230,19 @@ fire when their whole set matches.
 - A seesaw pushes by `WIPD 0x20` and tips over when the marble passes its middle.
 - Hole and hump accelerate towards or away from the centre, by
   `hole_acc[] = {0, 1, 3, 7, 15} << HOLED` with `HOLED 3` (106, 216, 1728).
-- **Vanishing floors wear out.** A `VAN0`/`VAN1`/`VAN2` square, or a plain `PATH`
-  square whose attribute has `0x20` set, advances one step each time the marble
-  *enters it anew*, and `VAN2` becomes an open pit (1747). So a vanishing floor
-  takes three crossings, and only the third kills.
+- **Vanishing floors wear out**, and the two ways of writing one do not wear at
+  the same rate (1747). The square advances one tile number each time the marble
+  *enters it anew*, and past `VAN2` it becomes an open pit:
+
+      VAN0 -> VAN1 -> VAN2 -> SPACE          three crossings
+      PATH+0x20 -> VAN0 -> VAN1 -> VAN2 -> SPACE   four
+
+  A square that starts as `VAN0` (85) takes three crossings, and the third is the
+  one that kills. A plain `PATH` marked vanishing by `0x20` in its attribute byte
+  spends its first crossing turning into `VAN0`, so it takes four. The code does
+  both in two lines by counting the tile number up and catching it twice, which is
+  why the difference is easy to miss. Mapping a marked `PATH` onto tile 85 would
+  be a crossing short.
 - `SWAMP` sets `GND_SWAMP` for this frame, which halves the speed in
   `move_marble`.
 - `ICE` sets `GND_ICE`, which removes friction. Steering is **not** reduced on
